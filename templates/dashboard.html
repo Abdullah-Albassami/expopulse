@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+{% comment %}
+   What this page expects from the Django view:
+
+   incidents              list of incidents, most urgent first
+   critical_count         number
+   high_count             number
+   active_count           number
+   available_team_count   number
+
+   Fields used on each incident:
+   id, title, location, priority_level, status,
+   assigned_team (.name), created_at, possible_duplicate_of (.id)
+
+   The two charts are drawn by dashboard.js from the table at the bottom,
+   so the incident data is written only once.
+{% endcomment %}
+
+<div id="dash">
+
+<div class="lead lead-small">
+    <div>
+        <h1>Operations dashboard</h1>
+        <p>Expo site, live. Click any number, bar or status to filter the list.</p>
+    </div>
+    <a class="report" href="{% url 'incident_create' %}">Report an incident</a>
+</div>
+
+<div class="tiles">
+    <button class="card tile is-critical" type="button" aria-pressed="false" data-priority="critical">
+        <span class="tile-label">Critical</span>
+        <span class="tile-num">{{ critical_count|default:0 }}</span>
+    </button>
+    <button class="card tile is-high" type="button" aria-pressed="false" data-priority="high">
+        <span class="tile-label">High priority</span>
+        <span class="tile-num">{{ high_count|default:0 }}</span>
+    </button>
+    <button class="card tile" type="button" title="Show everything">
+        <span class="tile-label">Active now</span>
+        <span class="tile-num">{{ active_count|default:0 }}</span>
+    </button>
+    <a class="card tile is-calm" href="{% url 'team_list' %}">
+        <span class="tile-label">Teams free</span>
+        <span class="tile-num">{{ available_team_count|default:0 }}</span>
+    </a>
+</div>
+
+<div class="charts">
+    <section class="card">
+        <h2>Open incidents by priority</h2>
+        <div class="vbars">
+            <button class="vbar" type="button" aria-pressed="false" data-priority="critical"><span class="vbar-num">0</span><span class="vbar-fill"></span><span class="vbar-name">Critical</span></button>
+            <button class="vbar" type="button" aria-pressed="false" data-priority="high"><span class="vbar-num">0</span><span class="vbar-fill"></span><span class="vbar-name">High</span></button>
+            <button class="vbar" type="button" aria-pressed="false" data-priority="medium"><span class="vbar-num">0</span><span class="vbar-fill"></span><span class="vbar-name">Medium</span></button>
+            <button class="vbar" type="button" aria-pressed="false" data-priority="low"><span class="vbar-num">0</span><span class="vbar-fill"></span><span class="vbar-name">Low</span></button>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Where incidents stand</h2>
+        <div class="donut-row">
+            <div class="donut">
+                <svg viewBox="-4 -4 108 108" aria-hidden="true"></svg>
+                <div class="donut-center"><b id="donut-num">0</b><span id="donut-text">today</span></div>
+            </div>
+            <ul class="legend">
+                <li><button class="legend-btn" type="button" aria-pressed="false" data-status="new"><i></i><span class="legend-name">New</span><b>0</b></button></li>
+                <li><button class="legend-btn" type="button" aria-pressed="false" data-status="assigned"><i></i><span class="legend-name">Assigned</span><b>0</b></button></li>
+                <li><button class="legend-btn" type="button" aria-pressed="false" data-status="in-progress"><i></i><span class="legend-name">In progress</span><b>0</b></button></li>
+                <li><button class="legend-btn" type="button" aria-pressed="false" data-status="resolved"><i></i><span class="legend-name">Resolved</span><b>0</b></button></li>
+            </ul>
+        </div>
+    </section>
+</div>
+
+<section class="card" id="list-card">
+    <div class="table-head">
+        <h2 id="list-title" aria-live="polite">Most urgent first</h2>
+        <button class="clear" id="clear-filter" type="button" hidden>Show everything</button>
+    </div>
+
+    <div class="table-wrap">
+        <table class="list dash-list" id="dash-list">
+            <thead>
+                <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Incident</th>
+                    <th scope="col">Location</th>
+                    <th scope="col">Priority</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Team</th>
+                    <th scope="col">Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for incident in incidents %}
+                <tr data-priority="{{ incident.priority_level }}"
+                    data-status="{{ incident.status }}"
+                    data-url="{% url 'incident_detail' incident.id %}">
+                    <td class="num">#{{ incident.id }}</td>
+                    <td class="title">
+                        <a href="{% url 'incident_detail' incident.id %}">{{ incident.title }}</a>
+                        {% if incident.possible_duplicate_of %}<span class="dupe">⚠ possible duplicate of #{{ incident.possible_duplicate_of.id }}</span>{% endif %}
+                    </td>
+                    <td>{{ incident.location }}</td>
+                    <td><span class="pill" data-priority="{{ incident.priority_level }}">{{ incident.get_priority_level_display|default:incident.priority_level }}</span></td>
+                    <td><span class="status-dot" data-status="{{ incident.status }}">{{ incident.get_status_display|default:incident.status }}</span></td>
+                    <td>{{ incident.assigned_team.name|default:"No team yet" }}</td>
+                    <td class="when"><time datetime="{{ incident.created_at|date:'c' }}">{{ incident.created_at|date:"H:i" }}</time></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if not incidents %}
+    <p class="none-match">Nothing has been reported yet. <a href="{% url 'incident_create' %}">Report an incident</a></p>
+    {% endif %}
+    <p class="none-match" id="none-match" hidden>No incidents here right now.</p>
+</section>
+
+</div>
+{% endblock %}

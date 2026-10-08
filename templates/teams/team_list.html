@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Teams{% endblock %}
+
+{% block content %}
+{% comment %}
+   What this page expects from the Django view:
+
+   teams                  list of response teams
+   available_team_count   number (optional)
+
+   Fields used on each team:
+   name, team_type, current_location, status (available / busy / offline),
+   assigned_incidents (the incidents linked to the team; the open one is shown)
+
+   Tip for the view: Team.objects.select_related("current_location")
+   .prefetch_related("assigned_incidents") keeps this page to a few queries.
+{% endcomment %}
+
+<div class="lead lead-small">
+    <div>
+        <h1>Response teams</h1>
+        <p>{{ teams|length }} team{{ teams|length|pluralize }}{% if available_team_count is not None %}, {{ available_team_count }} free to send{% endif %}.</p>
+    </div>
+</div>
+
+{% if teams %}
+<ul class="team-grid">
+    {% for team in teams %}
+    <li class="team" data-status="{{ team.status }}">
+        <h2>{{ team.name }}</h2>
+        <p class="kind">{{ team.get_team_type_display|default:team.team_type }}</p>
+        <dl class="facts">
+            <dt>Status</dt>
+            <dd><span class="state" data-status="{{ team.status }}">{{ team.get_status_display|default:team.status }}</span></dd>
+            <dt>Location</dt>
+            <dd>{{ team.current_location|default:"Unknown" }}</dd>
+            <dt>Working on</dt>
+            <dd>
+                {% for incident in team.assigned_incidents.all %}{% if incident.status != "resolved" %}
+                <a href="{% url 'incident_detail' incident.id %}">#{{ incident.id }} {{ incident.title }}</a>
+                {% endif %}{% endfor %}
+                {% if team.status != "busy" %}Nothing right now{% endif %}
+            </dd>
+        </dl>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="empty">No teams have been added yet.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,52 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard{% endblock %} | ExpoPulse</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    {% with current=request.resolver_match.url_name %}
+    <header class="topbar">
+    <div class="top">
+        <a class="brand" href="{% url 'dashboard' %}">ExpoPulse</a>
+
+        <nav class="nav" aria-label="Main navigation">
+            <a href="{% url 'dashboard' %}"
+               {% if current == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+            <a href="{% url 'incident_list' %}"
+               {% if current == 'incident_list' or current == 'incident_detail' %}aria-current="page"{% endif %}>Incidents</a>
+            <a href="{% url 'incident_create' %}"
+               {% if current == 'incident_create' %}aria-current="page"{% endif %}>Create incident</a>
+            <a href="{% url 'team_list' %}"
+               {% if current == 'team_list' %}aria-current="page"{% endif %}>Teams</a>
+        </nav>
+
+        <time class="clock" id="live-clock" aria-label="Local time">--:--:--</time>
+    </div>
+    </header>
+    {% endwith %}
+
+    <main id="main" class="wrap">
+        {% if messages %}
+        <div class="messages" role="status">
+            {% for message in messages %}
+            <div class="message message-{{ message.tags|default:'info' }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{% static 'js/dashboard.js' %}" defer></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
