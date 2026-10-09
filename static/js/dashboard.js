@@ -1,177 +1,237 @@
-/* ExpoPulse — interface behaviour only.
-   Priority, duplicates and team assignment are decided by the Django
-   backend. This file only draws and filters what the page already has. */
-
+/* ExpoPulse frontend. Django remains the authority for incidents and teams. */
 (function () {
     "use strict";
+    const norm = value => String(value || "").trim().toLowerCase().replace(/[\s_]+/g, "-");
+    const statusOrder = ["new", "assigned", "in-progress", "resolved"];
+    const byId = id => document.getElementById(id);
 
-    /* ---------- clock (every page) ---------- */
-    var clock = document.getElementById("live-clock");
+    const clock = byId("live-clock");
     if (clock) {
-        var tick = function () { clock.textContent = new Date().toLocaleTimeString("en-GB"); };
+        const tick = () => { clock.textContent = new Date().toLocaleTimeString("en-GB"); };
         tick();
         setInterval(tick, 1000);
     }
 
-    /* "In Progress", "in_progress" and "IN-PROGRESS" all become "in-progress",
-       so the styling works whichever way the backend stores the value. */
-    var norm = function (value) { return String(value || "").trim().toLowerCase().replace(/[\s_]+/g, "-"); };
-    var ORDER = ["new", "assigned", "in-progress", "resolved"];
-
-    document.querySelectorAll("[data-priority]").forEach(function (el) { el.dataset.priority = norm(el.dataset.priority); });
-    document.querySelectorAll("[data-status]").forEach(function (el) { el.dataset.status = norm(el.dataset.status); });
-
-    /* ---------- incident detail: mark where the incident is in its steps ---------- */
-    document.querySelectorAll("ol.steps[data-status]").forEach(function (list) {
-        var at = ORDER.indexOf(list.dataset.status);
-        list.querySelectorAll("li").forEach(function (li, i) {
-            li.className = at < 0 ? "" : i < at ? "is-done" : i === at ? "is-current" : "";
-            if (i === at) { li.setAttribute("aria-current", "step"); }
+    document.querySelectorAll("[data-priority]").forEach(el => { el.dataset.priority = norm(el.dataset.priority); });
+    document.querySelectorAll("[data-status]").forEach(el => { el.dataset.status = norm(el.dataset.status); });
+    document.querySelectorAll("ol.steps[data-status]").forEach(list => {
+        const index = statusOrder.indexOf(list.dataset.status);
+        list.querySelectorAll("li").forEach((li, i) => {
+            li.className = index < 0 ? "" : i < index ? "is-done" : i === index ? "is-current" : "";
+            if (i === index) li.setAttribute("aria-current", "step");
         });
     });
-
-    /* ---------- incident list: reload as soon as a filter changes ---------- */
-    document.querySelectorAll("form[data-auto-submit] select").forEach(function (select) {
-        select.addEventListener("change", function () { select.form.submit(); });
+    document.querySelectorAll("form[data-auto-submit] select").forEach(select => {
+        select.addEventListener("change", () => select.form.submit());
     });
-
-    /* ---------- ask before important actions: add data-confirm="Question?" ---------- */
-    document.addEventListener("submit", function (event) {
-        var question = event.target.getAttribute("data-confirm");
-        if (question && !window.confirm(question)) { event.preventDefault(); }
+    document.addEventListener("submit", event => {
+        const question = event.target.getAttribute("data-confirm");
+        if (question && !window.confirm(question)) event.preventDefault();
     });
-
-    /* ---------- create form: point at the first empty required field ---------- */
-    document.querySelectorAll("form[data-validate]").forEach(function (form) {
+    document.querySelectorAll("form[data-validate]").forEach(form => {
         form.setAttribute("novalidate", "");
-        form.addEventListener("submit", function (event) {
-            var first = null;
-            form.querySelectorAll("[required]").forEach(function (input) {
-                var field = input.closest(".field");
-                var bad = !input.value.trim() || (input.type === "number" && Number(input.value) < 0);
-                if (!field) { return; }
+        form.addEventListener("submit", event => {
+            let first = null;
+            form.querySelectorAll("[required]").forEach(input => {
+                const field = input.closest(".field");
+                if (!field) return;
+                const bad = !input.value.trim() || (input.type === "number" && Number(input.value) < 0);
                 field.classList.toggle("has-error", bad);
-                var old = field.querySelector(".js-error");
-                if (old) { old.remove(); }
+                const old = field.querySelector(".js-error");
+                if (old) old.remove();
                 if (bad) {
-                    var msg = document.createElement("span");
+                    const msg = document.createElement("span");
                     msg.className = "error js-error";
                     msg.textContent = input.value.trim() ? "Enter zero or more." : "Fill this in before sending.";
                     field.appendChild(msg);
-                    first = first || input;
+                    if (!first) first = input;
                 }
             });
             if (first) { event.preventDefault(); first.focus(); }
         });
     });
 
-    /* ---------- dashboard: tiles, charts and table ---------- */
-    var table = document.getElementById("dash-list");
-    if (!table) { return; }                        // not on the dashboard
+    const dash = byId("dash");
+    const table = byId("dash-list");
+    if (!dash || !table) return;
+    const tbody = table.querySelector("tbody");
+    const bars = [...dash.querySelectorAll(".vbar")];
+    const legend = [...dash.querySelectorAll(".legend-btn")];
+    const svg = dash.querySelector(".donut svg");
+    const state = byId("live-state");
+    const toast = byId("live-toast");
+    let current = {};
+    let rows = [];
+    let knownIds = null;
+    let busy = false;
+    const count = (items, key, value) => items.filter(r => r.dataset[key] === value).length;
 
-    var byId = function (id) { return document.getElementById(id); };
-    var dash = byId("dash");
-    var rows = Array.prototype.slice.call(table.querySelectorAll("tbody tr"));
-    var open = rows.filter(function (r) { return r.dataset.status !== "resolved"; });
-    var count = function (list, key, value) { return list.filter(function (r) { return r.dataset[key] === value; }).length; };
-
-    /* a whole row opens its incident */
-    rows.forEach(function (row) {
-        row.addEventListener("click", function (event) {
-            if (!event.target.closest("a")) { window.location.href = row.dataset.url; }
-        });
-    });
-
-    /* bars: open incidents by priority */
-    var bars = Array.prototype.slice.call(document.querySelectorAll(".vbar"));
-    var tallest = Math.max.apply(null, bars.map(function (b) { return count(open, "priority", b.dataset.priority); }).concat(1));
-    bars.forEach(function (bar) {
-        var n = count(open, "priority", bar.dataset.priority);
-        bar.querySelector(".vbar-num").textContent = n;
-        bar.querySelector(".vbar-fill").style.height = (n / tallest * 100) + "%";
-        bar.setAttribute("aria-label", bar.querySelector(".vbar-name").textContent + ": " + n + " open. Show only these.");
-        bar.addEventListener("click", function () { toggle("priority", bar.dataset.priority, bar); });
-    });
-
-    /* donut: every incident by status */
-    var legend = Array.prototype.slice.call(document.querySelectorAll(".legend-btn"));
-    var svg = document.querySelector(".donut svg");
-    var R = 40, around = 2 * Math.PI * R, used = 0, total = rows.length;
-    legend.forEach(function (btn) {
-        var status = btn.dataset.status, n = count(rows, "status", status);
-        btn.querySelector("b").textContent = n;
-        btn.addEventListener("click", function () { toggle("status", status, btn); });
-        if (!n || !svg) { return; }
-        var arc = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        var length = n / total * around, gap = total > n ? 1.5 : 0;
-        arc.setAttribute("cx", 50); arc.setAttribute("cy", 50); arc.setAttribute("r", R);
-        arc.setAttribute("stroke-dasharray", Math.max(length - gap, 0.5) + " " + around);
-        arc.setAttribute("stroke-dashoffset", -used);
-        arc.dataset.status = status;
-        arc.addEventListener("click", function () { toggle("status", status, btn); });
-        var tip = document.createElementNS("http://www.w3.org/2000/svg", "title");
-        tip.textContent = btn.querySelector(".legend-name").textContent + ": " + n;
-        arc.appendChild(tip);
-        svg.appendChild(arc);
-        used += length;
-    });
-    var centerNum = byId("donut-num"), centerText = byId("donut-text");
-    if (centerNum) { centerNum.textContent = total; }
-
-    /* tiles */
-    document.querySelectorAll("button.tile").forEach(function (tile) {
-        tile.addEventListener("click", function () {
-            if (tile.dataset.priority) { toggle("priority", tile.dataset.priority, tile); } else { filter(null); }
-        });
-    });
-
-    function toggle(key, value, control) {
-        var same = current.key === key && current.value === value;
-        filter(same ? null : key, value);
+    function el(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
     }
 
-    /* One filter at a time: key is "priority" or "status"; null shows everything.
-       Tiles, bars, the donut and its legend all go through here, so they stay in step. */
-    var current = {};
-    function filter(key, value) {
-        var on = !!key;
-        current = on ? { key: key, value: value } : {};
+    function renderRow(item) {
+        const tr = el("tr");
+        tr.dataset.priority = norm(item.priority);
+        tr.dataset.status = norm(item.status);
+        tr.dataset.url = item.url;
+        tr.appendChild(el("td", "num", `#${item.id}`));
+        const titleCell = el("td", "title");
+        const link = el("a", "", item.title);
+        link.href = item.url;
+        titleCell.appendChild(link);
+        if (item.duplicate_of) titleCell.appendChild(el("span", "dupe", ` ⚠ Possible duplicate of #${item.duplicate_of}`));
+        tr.appendChild(titleCell);
+        tr.appendChild(el("td", "", item.type));
+        tr.appendChild(el("td", "", item.location));
+        const priorityCell = el("td");
+        const priorityPill = el("span", "pill", item.priority_label);
+        priorityPill.dataset.priority = norm(item.priority);
+        priorityCell.appendChild(priorityPill);
+        tr.appendChild(priorityCell);
+        const statusCell = el("td");
+        const statusPill = el("span", "status-dot", item.status_label);
+        statusPill.dataset.status = norm(item.status);
+        statusCell.appendChild(statusPill);
+        tr.appendChild(statusCell);
+        tr.appendChild(el("td", "", item.team));
+        const timeCell = el("td", "when");
+        const time = el("time", "", item.created_time);
+        time.dateTime = item.created_at;
+        timeCell.appendChild(time);
+        tr.appendChild(timeCell);
+        tr.addEventListener("click", event => {
+            if (!event.target.closest("a")) window.location.href = item.url;
+        });
+        return tr;
+    }
+
+    function refreshCharts() {
+        const open = rows.filter(r => r.dataset.status !== "resolved");
+        const maximum = Math.max(1, ...bars.map(bar => count(open, "priority", bar.dataset.priority)));
+        bars.forEach(bar => {
+            const n = count(open, "priority", bar.dataset.priority);
+            bar.querySelector(".vbar-num").textContent = n;
+            bar.querySelector(".vbar-fill").style.height = `${n / maximum * 100}%`;
+            bar.setAttribute("aria-label", `${bar.querySelector(".vbar-name").textContent}: ${n} open incidents`);
+        });
+        svg.replaceChildren();
+        const radius = 40;
+        const circumference = 2 * Math.PI * radius;
+        let used = 0;
+        legend.forEach(button => {
+            const n = count(rows, "status", button.dataset.status);
+            button.querySelector("b").textContent = n;
+            if (!n || !rows.length) return;
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            const length = n / rows.length * circumference;
+            circle.setAttribute("cx", "50");
+            circle.setAttribute("cy", "50");
+            circle.setAttribute("r", String(radius));
+            circle.setAttribute("stroke-dasharray", `${Math.max(length - (n < rows.length ? 1.5 : 0), 0.5)} ${circumference}`);
+            circle.setAttribute("stroke-dashoffset", String(-used));
+            circle.dataset.status = button.dataset.status;
+            circle.addEventListener("click", () => toggle("status", button.dataset.status));
+            const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+            title.textContent = `${button.querySelector(".legend-name").textContent}: ${n}`;
+            circle.appendChild(title);
+            svg.appendChild(circle);
+            used += length;
+        });
+        byId("donut-num").textContent = rows.length;
+    }
+
+    function applyFilter() {
+        const on = !!current.key;
         dash.classList.toggle("is-filtering", on);
-
-        document.querySelectorAll(".vbar, button.tile[data-priority]").forEach(function (el) {
-            el.setAttribute("aria-pressed", on && key === "priority" && el.dataset.priority === value ? "true" : "false");
+        dash.querySelectorAll(".vbar, button.tile[data-priority]").forEach(item => {
+            item.setAttribute("aria-pressed", String(on && current.key === "priority" && item.dataset.priority === current.value));
         });
-        legend.forEach(function (btn) {
-            btn.setAttribute("aria-pressed", on && key === "status" && btn.dataset.status === value ? "true" : "false");
+        legend.forEach(item => {
+            item.setAttribute("aria-pressed", String(on && current.key === "status" && item.dataset.status === current.value));
         });
-        document.querySelectorAll(".donut circle").forEach(function (arc) {
-            arc.classList.toggle("is-on", on && key === "status" && arc.dataset.status === value);
+        svg.querySelectorAll("circle").forEach(item => {
+            item.classList.toggle("is-on", on && current.key === "status" && item.dataset.status === current.value);
         });
-
-        var shown = 0;
-        rows.forEach(function (row) {
-            /* a priority filter looks at open incidents only, like the bars do */
-            var match = !on || (row.dataset[key] === value && (key !== "priority" || row.dataset.status !== "resolved"));
+        let shown = 0;
+        rows.forEach(row => {
+            const match = !on || (row.dataset[current.key] === current.value && (current.key !== "priority" || row.dataset.status !== "resolved"));
             row.hidden = !match;
-            if (match) { shown += 1; }
+            if (match) shown++;
         });
-
-        var name = "";
+        let label = "";
         if (on) {
-            var source = key === "status"
-                ? document.querySelector('.legend-btn[data-status="' + value + '"] .legend-name')
-                : document.querySelector('.vbar[data-priority="' + value + '"] .vbar-name');
-            name = source ? source.textContent : value;
+            const control = current.key === "status"
+                ? legend.find(item => item.dataset.status === current.value)
+                : bars.find(item => item.dataset.priority === current.value);
+            label = control ? control.querySelector(current.key === "status" ? ".legend-name" : ".vbar-name").textContent : current.value;
         }
-        byId("list-title").textContent = on ? name + ": " + shown + (shown === 1 ? " incident" : " incidents") : "Most urgent first";
+        byId("list-title").textContent = on ? `${label}: ${shown} incident${shown === 1 ? "" : "s"}` : "Most urgent first";
         byId("clear-filter").hidden = !on;
         byId("none-match").hidden = shown > 0;
-        if (centerNum) {
-            centerNum.textContent = on && key === "status" ? shown : total;
-            centerText.textContent = on && key === "status" ? name.toLowerCase() : "today";
-        }
-        if (on) { byId("list-card").scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+        byId("donut-num").textContent = on && current.key === "status" ? shown : rows.length;
+        byId("donut-text").textContent = on && current.key === "status" ? label.toLowerCase() : "total";
     }
 
-    byId("clear-filter").addEventListener("click", function () { filter(null); });
+    function toggle(key, value) {
+        const same = current.key === key && current.value === value;
+        current = same ? {} : { key, value };
+        applyFilter();
+        if (!same) byId("list-card").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+    bars.forEach(bar => bar.addEventListener("click", () => toggle("priority", bar.dataset.priority)));
+    legend.forEach(button => button.addEventListener("click", () => toggle("status", button.dataset.status)));
+    dash.querySelectorAll("button.tile").forEach(button => button.addEventListener("click", () => {
+        if (button.dataset.priority) toggle("priority", button.dataset.priority);
+        else { current = {}; applyFilter(); }
+    }));
+    byId("clear-filter").addEventListener("click", () => { current = {}; applyFilter(); });
+
+    async function poll() {
+        if (busy || document.hidden) return;
+        busy = true;
+        try {
+            const response = await fetch(dash.dataset.feedUrl, {
+                headers: { Accept: "application/json" },
+                cache: "no-store",
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const identifiers = new Set(data.incidents.map(item => item.id));
+            if (knownIds !== null) {
+                const added = data.incidents.filter(item => !knownIds.has(item.id));
+                if (added.length) {
+                    toast.textContent = `${added.length} new incident${added.length === 1 ? "" : "s"} detected. See the incident table.`;
+                    toast.hidden = false;
+                }
+            }
+            knownIds = identifiers;
+            const fragment = document.createDocumentFragment();
+            data.incidents.forEach(item => fragment.appendChild(renderRow(item)));
+            tbody.replaceChildren(fragment);
+            rows = [...tbody.querySelectorAll("tr")];
+            const ids = {
+                critical_count: "critical-count",
+                high_count: "high-count",
+                active_count: "active-count",
+                resolved_today_count: "resolved-count",
+                available_team_count: "available-count",
+            };
+            Object.entries(ids).forEach(([key, id]) => { byId(id).textContent = data.counts[key]; });
+            refreshCharts();
+            applyFilter();
+            state.textContent = `Live updates active · last checked ${new Date().toLocaleTimeString("en-GB")}`;
+        } catch (error) {
+            state.textContent = "Live update unavailable · retrying…";
+            console.warn("ExpoPulse polling failed:", error);
+        } finally {
+            busy = false;
+        }
+    }
+    poll();
+    setInterval(poll, 5000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 })();
