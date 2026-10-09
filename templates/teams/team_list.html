@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Teams{% endblock %}
+
+{% block content %}
+
+<div class="lead lead-small">
+    <div>
+        <h1>Response teams</h1>
+        <p>
+            {{ teams|length }} teams,
+            {{ available_team_count }} available.
+        </p>
+    </div>
+</div>
+
+{% if teams %}
+<ul class="team-grid">
+    {% for team in teams %}
+    <li class="team" data-status="{{ team.status }}">
+        <h2>{{ team.name }}</h2>
+
+        <p class="kind">
+            {{ team.get_team_type_display }}
+        </p>
+
+        <dl class="facts">
+            <dt>Status</dt>
+            <dd>
+                <span class="state" data-status="{{ team.status }}">
+                    {{ team.get_status_display }}
+                </span>
+            </dd>
+
+            <dt>Location</dt>
+            <dd>
+                {{ team.current_location|default:"Unknown" }}
+            </dd>
+
+            <dt>Working on</dt>
+            <dd>
+                {% for incident in team.assigned_incidents.all %}
+                    {% if incident.status != "resolved" %}
+                    <a href="{% url 'incident_detail' incident.id %}">
+                        #{{ incident.id }} {{ incident.title }}
+                    </a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if team.status == "available" %}
+                    No active assignment
+                {% elif team.status == "offline" %}
+                    Team offline
+                {% endif %}
+            </dd>
+        </dl>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="empty">No response teams have been added yet.</p>
+{% endif %}
+
+{% endblock %}

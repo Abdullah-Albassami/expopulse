@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Incident #{{ incident.id }}{% endblock %}
+
+{% block content %}
+
+<a class="back" href="{% url 'incident_list' %}">
+    Back to all incidents
+</a>
+
+<div class="detail">
+    <div>
+        <span class="detail-id">Incident #{{ incident.id }}</span>
+        <h1>{{ incident.title }}</h1>
+        <p class="detail-where">{{ incident.location }}</p>
+
+        {% if incident.possible_duplicate_of %}
+        <p class="dup-big" role="alert">
+            <span class="mark" aria-hidden="true">⚠</span>
+            <span>
+                Possible duplicate of
+                <a href="{% url 'incident_detail' incident.possible_duplicate_of.id %}">
+                    incident #{{ incident.possible_duplicate_of.id }}
+                </a>.
+                Check before assigning a second team.
+            </span>
+        </p>
+        {% endif %}
+
+        <p class="detail-desc">{{ incident.description }}</p>
+
+        <ol class="steps steps-dark"
+            data-status="{{ incident.status }}"
+            aria-label="Incident progress">
+            <li>New</li>
+            <li>Assigned</li>
+            <li>In progress</li>
+            <li>Resolved</li>
+        </ol>
+    </div>
+
+    <aside class="drawer">
+        <dl class="facts">
+            <dt>Priority</dt>
+            <dd>
+                <span data-priority="{{ incident.priority_level }}">
+                    {{ incident.get_priority_level_display }}
+                </span>
+                — Score {{ incident.priority_score }}
+            </dd>
+
+            <dt>Status</dt>
+            <dd>{{ incident.get_status_display }}</dd>
+
+            <dt>Team</dt>
+            <dd>
+                {{ incident.assigned_team.name|default:"No team yet" }}
+            </dd>
+
+            <dt>Type</dt>
+            <dd>{{ incident.get_incident_type_display }}</dd>
+
+            <dt>Source</dt>
+            <dd>{{ incident.source }}</dd>
+
+            <dt>Location</dt>
+            <dd>{{ incident.location }}</dd>
+
+            <dt>Severity</dt>
+            <dd>{{ incident.get_severity_display }}</dd>
+
+            <dt>People affected</dt>
+            <dd>{{ incident.people_affected }}</dd>
+
+            <dt>Created</dt>
+            <dd>{{ incident.created_at|date:"M d, Y H:i" }}</dd>
+
+            <dt>Updated</dt>
+            <dd>{{ incident.updated_at|date:"M d, Y H:i" }}</dd>
+        </dl>
+
+        {% if incident.status == "new" %}
+            {% if suggested_team %}
+                <p>
+                    Suggested team:
+                    <strong>{{ suggested_team.name }}</strong>
+                </p>
+
+                <form method="post"
+                      action="{% url 'incident_assign_team' incident.id %}">
+                    {% csrf_token %}
+                    <button class="btn btn-solid" type="submit">
+                        Confirm team assignment
+                    </button>
+                </form>
+            {% else %}
+                <p>No suitable team is currently available.</p>
+            {% endif %}
+
+        {% elif incident.status == "assigned" %}
+            <form method="post"
+                  action="{% url 'incident_update_status' incident.id %}">
+                {% csrf_token %}
+                <button class="btn btn-solid" type="submit">
+                    Start incident response
+                </button>
+            </form>
+
+        {% elif incident.status == "in_progress" %}
+            <form method="post"
+                  action="{% url 'incident_update_status' incident.id %}"
+                  data-confirm="Resolve this incident and release its team?">
+                {% csrf_token %}
+                <button class="btn btn-solid" type="submit">
+                    Mark as resolved
+                </button>
+            </form>
+
+        {% elif incident.status == "resolved" %}
+            <p>Incident resolved.</p>
+        {% endif %}
+    </aside>
+</div>
+
+{% endblock %}
