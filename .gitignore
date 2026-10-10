@@ -10,3 +10,5 @@ footage/
 *.pt
 # Generated HLS streaming files
 streams/hls/
+# Generated HLS livestream files
+streams/
