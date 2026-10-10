@@ -7,7 +7,8 @@ from django.core.management.base import BaseCommand, CommandError
 
 from incidents.models import Incident, IncidentSource, Location
 from incidents.services.assignment import assign_team_to_incident
-from incidents.services.incident_service import create_incident
+from incidents.cctv.crowding_state import CrowdingState
+from incidents.cctv.incident_guard import get_or_create_cctv_crowding_incident
 
 
 class Command(BaseCommand):
@@ -24,6 +25,10 @@ class Command(BaseCommand):
         parser.add_argument("--frames", type=int, default=3)
         parser.add_argument("--sample-every", type=int, default=5)
         parser.add_argument("--confidence", type=float, default=0.35)
+        parser.add_argument("--model", default="yolo11n.pt")
+        parser.add_argument("--imgsz", type=int, default=640)
+        parser.add_argument("--clear-threshold", type=int)
+        parser.add_argument("--clear-seconds", type=float, default=10)
         parser.add_argument(
             "--cooldown",
             type=float,
@@ -53,11 +58,24 @@ class Command(BaseCommand):
         cooldown = options["cooldown"]
         retry_delay = options["retry_delay"]
         max_retries = options["max_retries"]
+        imgsz = options["imgsz"]
+        model_path = options["model"]
+        clear_seconds = options["clear_seconds"]
+        clear_threshold = options["clear_threshold"]
+        if clear_threshold is None:
+            clear_threshold = max(0, threshold - 2)
 
         if min(threshold, required_frames, sample_every) < 1:
             raise CommandError(
                 "Threshold, frames, and sample-every must be at least 1."
             )
+
+        if imgsz < 32 or clear_seconds < 0:
+            raise CommandError("Invalid image size or clearance duration.")
+        try:
+            state = CrowdingState(threshold, clear_threshold, required_frames, clear_seconds)
+        except ValueError as exc:
+            raise CommandError(str(exc)) from exc
 
         if not 0 < confidence <= 1:
             raise CommandError("Confidence must be between 0 and 1.")
@@ -84,8 +102,8 @@ class Command(BaseCommand):
 
         is_stream = video.lower().startswith(("http://", "https://"))
 
-        self.stdout.write("Loading YOLO11n model...")
-        model = YOLO("yolo11n.pt")
+        self.stdout.write(f"Loading YOLO model: {model_path}...")
+        model = YOLO(model_path)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -95,12 +113,6 @@ class Command(BaseCommand):
         )
 
         frame_number = 0
-        consecutive_high = 0
-        consecutive_low = 0
-
-        # True while one crowding episode is active.
-        alert_active = False
-
         # Monotonic time avoids system-clock changes affecting cooldown.
         last_alert_time = float("-inf")
         retries = 0
@@ -142,17 +154,14 @@ class Command(BaseCommand):
                     )
 
                     frame_number = 0
-                    consecutive_high = 0
-                    consecutive_low = 0
-
-                    # Do not reset alert_active or last_alert_time:
-                    # a reconnection must not create a duplicate episode.
+                    # Retain episode and cooldown state across reconnects.
 
                     retries = 0
 
                 success, frame = capture.read()
 
                 if not success:
+                    state.interrupt()
                     capture.release()
                     capture = None
 
@@ -185,6 +194,7 @@ class Command(BaseCommand):
                     frame,
                     classes=[0],
                     conf=confidence,
+                    imgsz=imgsz,
                     device="cpu",
                     verbose=False,
                 )
@@ -196,94 +206,36 @@ class Command(BaseCommand):
                     f"{people_count} people detected"
                 )
 
-                if people_count >= threshold:
-                    consecutive_high += 1
-                    consecutive_low = 0
-                else:
-                    consecutive_low += 1
-                    consecutive_high = 0
-
-                    if (
-                        alert_active
-                        and consecutive_low >= required_frames
-                    ):
-                        alert_active = False
-                        self.stdout.write(
-                            "Crowding cleared. Waiting for a new episode."
-                        )
-
-                if consecutive_high < required_frames:
+                event = state.update(people_count, time.monotonic())
+                if event == "clear":
+                    self.stdout.write("Crowding visually cleared; incident remains open.")
                     continue
-
-                if alert_active:
+                if event != "trigger":
                     continue
-
                 now = time.monotonic()
-
                 if now - last_alert_time < cooldown:
-                    # Suppress this episode until the crowd clears.
-                    alert_active = True
-                    self.stdout.write(
-                        "Crowding detected, but cooldown is active. "
-                        "No new incident created."
-                    )
+                    self.stdout.write("New episode detected during cooldown; suppressed.")
                     continue
-
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"CROWDING DETECTED: {people_count} people "
-                        f"at {location.name}"
-                    )
+                self.stdout.write(self.style.WARNING(f"CROWDING DETECTED: {people_count} people at {location.name}"))
+                incident, created = get_or_create_cctv_crowding_incident(
+                    source=source, location=location, people_count=people_count
                 )
-
-                incident = create_incident(
-                    title=f"CCTV Crowding Alert - {location.name}",
-                    description=(
-                        "Automated CCTV monitoring detected "
-                        f"{people_count} people at {location.name}. "
-                        "Operator verification required."
-                    ),
-                    incident_type=Incident.IncidentType.CROWDING,
-                    source=source,
-                    location=location,
-                    severity=Incident.Severity.HIGH,
-                    people_affected=people_count,
-                )
-
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Incident #{incident.pk} created | "
-                        f"Priority: {incident.priority_level} "
-                        f"({incident.priority_score})"
-                    )
-                )
-
-                if incident.possible_duplicate_of_id:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            "Possible duplicate of incident "
-                            f"#{incident.possible_duplicate_of_id}. "
-                            "No additional team assigned."
-                        )
-                    )
+                if not created:
+                    self.stdout.write(f"Existing unresolved CCTV incident #{incident.pk}; duplicate suppressed.")
                 else:
-                    team = assign_team_to_incident(incident)
-
-                    if team:
-                        self.stdout.write(
-                            self.style.SUCCESS(
-                                f"Assigned team: {team.name}"
-                            )
-                        )
+                    self.stdout.write(self.style.SUCCESS(f"Incident #{incident.pk} created | Priority: {incident.priority_level} ({incident.priority_score})"))
+                    if incident.possible_duplicate_of_id:
+                        self.stdout.write(f"Possible duplicate of #{incident.possible_duplicate_of_id}; no additional team assigned.")
                     else:
-                        self.stdout.write(
-                            self.style.WARNING(
-                                "No matching available team. "
-                                "Incident remains New."
-                            )
-                        )
-
-                alert_active = True
+                        try:
+                            team = assign_team_to_incident(incident)
+                        except Exception:
+                            self.stderr.write(self.style.ERROR(f"Incident #{incident.pk} created but assignment failed."))
+                            raise
+                        if team:
+                            self.stdout.write(self.style.SUCCESS(f"Assigned team: {team.name}"))
+                        else:
+                            self.stdout.write("No matching available team. Incident remains New.")
                 last_alert_time = time.monotonic()
 
         except KeyboardInterrupt:
