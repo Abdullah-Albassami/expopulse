@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load operations %}
 {% block title %}Dashboard{% endblock %}
 {% block extra_head %}
 <style>
@@ -15,10 +16,10 @@
     <div class="lead lead-small">
         <div>
             <h1>Operations dashboard</h1>
-            <p>Expo site operations. Select a priority or status to filter incidents.</p>
+            <p>Live incident picture · prioritized by severity and impact. Select a priority or status to focus the queue.</p>
             <p class="live-note" id="live-state" role="status">Connecting live updates…</p>
         </div>
-        <a class="report" href="{% url 'incident_create' %}">Report an incident</a>
+        <a class="report" href="{% url 'incident_create' %}">Manual incident report</a>
     </div>
     <p class="live-toast" id="live-toast" role="status" hidden></p>
     <div class="tiles">
@@ -78,7 +79,7 @@
                     <tr data-priority="{{ incident.priority_level }}" data-status="{{ incident.status }}" data-url="{% url 'incident_detail' incident.id %}">
                         <td class="num">#{{ incident.id }}</td>
                         <td class="title"><a href="{% url 'incident_detail' incident.id %}">{{ incident.title }}</a>{% if incident.possible_duplicate_of %}<span class="dupe"> ⚠ Possible duplicate of #{{ incident.possible_duplicate_of.id }}</span>{% endif %}</td>
-                        <td>{{ incident.get_incident_type_display }}</td><td>{{ incident.location }}</td>
+                        <td>{{ incident.get_incident_type_display }}<small class="ops-module">{{ incident|monitoring_module }}</small></td><td>{{ incident.location }}</td>
                         <td><span class="pill" data-priority="{{ incident.priority_level }}">{{ incident.get_priority_level_display }}</span></td>
                         <td><span class="status-dot" data-status="{{ incident.status }}">{{ incident.get_status_display }}</span></td>
                         <td>{{ incident.assigned_team.name|default:"No team yet" }}</td>
