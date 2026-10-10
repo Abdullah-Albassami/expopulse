@@ -33,7 +33,7 @@
             <a href="{% url 'incident_list' %}"
                {% if current == 'incident_list' or current == 'incident_detail' %}aria-current="page"{% endif %}>Incidents</a>
             <a href="{% url 'incident_create' %}"
-               {% if current == 'incident_create' %}aria-current="page"{% endif %}>Create incident</a>
+               {% if current == 'incident_create' %}aria-current="page"{% endif %}>Manual report</a>
             <a href="{% url 'team_list' %}"
                {% if current == 'team_list' %}aria-current="page"{% endif %}>Teams</a>
         </nav>
