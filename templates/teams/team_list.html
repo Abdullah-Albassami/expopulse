@@ -7,6 +7,7 @@
 <div class="lead lead-small">
     <div>
         <h1>Response teams</h1>
+        <p>Response resources and current assignments. Base locations are not live GPS positions.</p>
         <p>
             {{ teams|length }} teams,
             {{ available_team_count }} available.
@@ -24,6 +25,8 @@
             {{ team.get_team_type_display }}
         </p>
 
+        <p class="ops-responsibility">Responsibilities: {% if team.team_type == "security" %}Crowd management and restricted-area response{% elif team.team_type == "medical" %}Falls, injury and medical assistance{% elif team.team_type == "maintenance" %}Elevator, escalator and facility faults{% elif team.team_type == "it" %}Networks, access systems and IT faults{% elif team.team_type == "cleaning" %}Spills, sanitation and cleaning requests{% else %}Visitor assistance and accessibility{% endif %}</p>
+
         <dl class="facts">
             <dt>Status</dt>
             <dd>
@@ -32,7 +35,7 @@
                 </span>
             </dd>
 
-            <dt>Location</dt>
+            <dt>Base location</dt>
             <dd>
                 {{ team.current_location|default:"Unknown" }}
             </dd>
@@ -41,6 +44,7 @@
             <dd>
                 {% for incident in team.assigned_incidents.all %}
                     {% if incident.status != "resolved" %}
+                    <span class="response-destination">Responding to: {{ incident.location }}</span>
                     <a href="{% url 'incident_detail' incident.id %}">
                         #{{ incident.id }} {{ incident.title }}
                     </a>
