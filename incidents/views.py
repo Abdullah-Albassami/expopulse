@@ -6,13 +6,14 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .forms import IncidentForm
-from .models import Incident, Location, Team
+from .models import Incident, IncidentSource, Location, Team
 from .services.assignment import (
     assign_team_to_incident,
     find_suitable_team,
     release_team_from_incident,
 )
 from .services.incident_service import create_incident
+from .services.monitoring_channels import monitoring_channel
 from .services.workflow import update_incident_status
 
 
@@ -77,6 +78,7 @@ def dashboard_data(request):
                 "id": incident.pk,
                 "title": incident.title,
                 "type": incident.get_incident_type_display(),
+                "module": monitoring_channel(incident),
                 "location": str(incident.location),
                 "priority": incident.priority_level,
                 "priority_label": incident.get_priority_level_display(),
@@ -148,11 +150,15 @@ def incident_create(request):
         form = IncidentForm(request.POST)
         if form.is_valid():
             data = form.cleaned_data
+            manual_source, _ = IncidentSource.objects.get_or_create(
+                name="Manual Report",
+                defaults={"source_type": IncidentSource.SourceType.STAFF},
+            )
             incident = create_incident(
                 title=data["title"],
                 description=data["description"],
                 incident_type=data["incident_type"],
-                source=data["source"],
+                source=manual_source,
                 location=data["location"],
                 severity=data["severity"],
                 people_affected=data["people_affected"],
