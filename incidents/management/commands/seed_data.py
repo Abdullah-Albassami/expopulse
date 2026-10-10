@@ -105,7 +105,8 @@ class Command(BaseCommand):
         }
         teams = {}
         for name, (team_type, status, location_name) in team_data.items():
-            team, _ = Team.objects.update_or_create(
+            # Existing operational teams must retain their live status and assignments.
+            team, _ = Team.objects.get_or_create(
                 name=name,
                 defaults={
                     "team_type": team_type,
