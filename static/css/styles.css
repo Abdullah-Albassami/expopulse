@@ -364,3 +364,10 @@ a.report { display: inline-block; text-decoration: none; }
 .detail-workflow { margin-top: 18px; }
 .detail-workflow form { margin-top: 12px; }
 .detail-workflow p { color: var(--paper); }
+
+/* Operations-center context labels: source, reporting mode, team dispatch. */
+.ops-module { display: block; color: var(--mist); font-size: .78rem; line-height: 1.45; margin-top: 3px; }
+.ops-note { padding: 14px 18px; border: 1px solid var(--line); border-radius: 14px; background: rgba(59,130,246,.09); color: var(--mist); }
+.ops-note strong { color: var(--paper); }
+.ops-responsibility { color: var(--mist); font-size: .89rem; line-height: 1.4; margin: 7px 0 15px; }
+.response-destination { display: block; color: var(--mist); font-size: .85rem; font-weight: 600; margin-bottom: 4px; }
