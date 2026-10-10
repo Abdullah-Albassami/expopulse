@@ -43,7 +43,8 @@ Teams free opens the Teams page.
 
 **Incident table.** Most urgent first. The heading shows what is being
 filtered and how many incidents match, and a "Show everything" link clears it.
-Clicking a row opens that incident.
+Clicking anywhere on a row opens that incident, so there is no need to go
+through the Incidents page.
 
 Only one filter is active at a time, and the tiles, bars, ring and legend
 always show the same selection.
@@ -58,10 +59,14 @@ Location, Type, Source, Team, Created. The filters are a normal GET form,
 so filtering happens in the backend and the page reloads. Choosing a value
 in a dropdown submits the form straight away.
 
-**Incident detail.** Priority, status, team and the duplicate warning are
-the most visible things on the page. The four steps
-(New, Assigned, In progress, Resolved) show where the incident is now.
-A "Move to next step" button appears only if the backend provides that action.
+**Incident detail.** Uses the full width of the page. A large header card
+shows the incident number, priority, status, title and location, with the
+four steps (New, Assigned, In progress, Resolved) running across it. The
+duplicate warning sits directly under it, then the description, then eight
+fact cards (priority and score, team, severity, people affected, type,
+source, created, updated). The header takes the color of the incident's
+priority. A "Move to next step" button appears only if the backend provides
+that action.
 
 **Create incident.** Draws whatever Django form the view sends. Empty
 required fields are pointed out before the form is sent. Priority is not
@@ -71,9 +76,12 @@ calculated here.
 
 ## Design
 
-- Dark red, close to black, with a gradient background.
+- Dark navy blue with a gradient background and a soft blue glow at the top.
+- Logo: a ring with a pulse line running through it, drawn as inline SVG in
+  `base.html`, next to the ExpoPulse wordmark. No image file is needed.
 - One typeface, Bricolage Grotesque, loaded from Google Fonts with a system font fallback.
-- Priority colors: Critical red, High amber, Medium pink, Low muted.
+- Priority colors: Critical red, High amber, Medium yellow, Low grey-blue.
+  Status colors: New blue, Assigned purple, In progress teal, Resolved green.
   Every priority and status also has a text label, so nothing depends on color alone.
 - The top bar stays fixed at the top of the screen while scrolling, on every page.
 - All colors are defined once as variables at the top of `styles.css`.
@@ -86,6 +94,7 @@ calculated here.
 | CSS | Plain CSS: custom properties, Grid, Flexbox, `position: sticky` |
 | JavaScript | Plain JavaScript, no libraries and no build step |
 | Charts | Built by hand: CSS for the bars, inline SVG for the ring |
+| Logo | Inline SVG |
 | Font | Bricolage Grotesque (Google Fonts) |
 
 Not used: React, Vue, Angular, Chart.js, Bootstrap, Tailwind, jQuery.
