@@ -1,0 +1,5 @@
+{
+  "zone_id": "STAFF_ONLY_A",
+  "name": "Staff-Only Corridor",
+  "polygon": [[0.52, 0.26], [0.94, 0.26], [0.98, 0.96], [0.48, 0.96]]
+}
