@@ -298,6 +298,49 @@ class ZonePresenceTracker:
         return "outside"
 
 
+
+@dataclass
+class ZoneOccupancyTracker:
+    """Track restricted-zone occupancy per processed frame, not per detection.
+
+    Any person in the zone counts toward confirmation; empty frames count
+    toward clearing. Tracking IDs are intentionally not required, so multiple
+    people, lost IDs, and an empty detection result cannot stall the state.
+    """
+    confirm_frames: int = 5
+    clear_frames: int = 10
+    inside_frames: int = 0
+    empty_frames: int = 0
+    active: bool = False
+
+    def __post_init__(self):
+        if self.confirm_frames < 1 or self.clear_frames < 1:
+            raise ValueError("Frame thresholds must be positive.")
+
+    def reset(self):
+        self.inside_frames = 0
+        self.empty_frames = 0
+        self.active = False
+
+    def observe_frame(self, any_person_inside):
+        if any_person_inside:
+            self.empty_frames = 0
+            if self.active:
+                return "confirmed"
+            self.inside_frames += 1
+            if self.inside_frames >= self.confirm_frames:
+                self.active = True
+                return "confirmed"
+            return "candidate"
+        self.inside_frames = 0
+        if not self.active:
+            return "outside"
+        self.empty_frames += 1
+        if self.empty_frames >= self.clear_frames:
+            self.reset()
+            return "cleared"
+        return "clearing"
+
 def find_active_restricted_zone_incident(location, zone_id, *, source_name="CCTV Monitoring"):
     from incidents.models import IncidentSource
 

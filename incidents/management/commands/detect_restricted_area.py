@@ -9,7 +9,7 @@ from ultralytics import YOLO
 
 from incidents.cctv.restricted_area import (
     ZoneConfigError,
-    ZonePresenceTracker,
+    ZoneOccupancyTracker,
     find_active_restricted_zone_incident,
     get_bottom_center_from_xyxy,
     is_point_in_zone,
@@ -93,7 +93,7 @@ class Command(BaseCommand):
         is_stream = str(video).lower().startswith(("http://", "https://"))
         capture = None
         model = YOLO(model_name)
-        tracker = ZonePresenceTracker(confirm_frames=confirm_frames, clear_frames=clear_frames)
+        tracker = ZoneOccupancyTracker(confirm_frames=confirm_frames, clear_frames=clear_frames)
         alert_active = False
         last_alert_time = float("-inf")
         retries = 0
@@ -151,44 +151,40 @@ class Command(BaseCommand):
                     verbose=False,
                 )
 
-                if not results or len(results) == 0:
-                    continue
-                result = results[0]
-                boxes = getattr(result, "boxes", None)
-                if boxes is None:
-                    continue
-
-                track_ids = getattr(boxes, "id", None)
-                if track_ids is not None:
-                    if hasattr(track_ids, "cpu"):
-                        track_ids = [int(item) for item in track_ids.cpu().tolist()]
-                    else:
-                        track_ids = [int(item) for item in track_ids]
-                else:
-                    track_ids = [None] * len(boxes.xyxy)
-
-                boxes_xyxy = boxes.xyxy.cpu().tolist() if hasattr(boxes.xyxy, "cpu") else boxes.xyxy.tolist()
-
+                # Always record exactly one occupancy observation per sampled frame,
+                # even when YOLO returns no detections or no tracking IDs.
                 detections = []
-                for index, box in enumerate(boxes_xyxy):
-                    track_id = track_ids[index] if index < len(track_ids) else None
-                    x1, y1, x2, y2 = [float(value) for value in box]
-                    bottom_center = get_bottom_center_from_xyxy([x1, y1, x2, y2])
-                    inside = is_point_in_zone(zone, bottom_center[0], bottom_center[1], frame_width=width, frame_height=height)
-                    detections.append((track_id, inside, bottom_center))
+                if results:
+                    boxes = getattr(results[0], "boxes", None)
+                    if boxes is not None:
+                        coords = boxes.xyxy
+                        boxes_xyxy = coords.cpu().tolist() if hasattr(coords, "cpu") else coords.tolist()
+                        ids = getattr(boxes, "id", None)
+                        if ids is None:
+                            track_ids = [None] * len(boxes_xyxy)
+                        elif hasattr(ids, "cpu"):
+                            track_ids = [int(value) for value in ids.cpu().tolist()]
+                        else:
+                            track_ids = [int(value) for value in ids]
 
-                for track_id, inside, bottom_center in detections:
-                    decision = tracker.observe(track_id, inside)
-                    if decision == "candidate":
-                        self.stdout.write(f"Candidate inside zone: track={track_id} point={bottom_center}")
-                    elif decision == "confirmed":
-                        self.stdout.write(self.style.WARNING(f"Zone confirmed for track {track_id}."))
-                    elif decision == "cleared":
-                        self.stdout.write(self.style.WARNING("Restricted-zone event cleared."))
-                    elif decision == "ignored":
-                        self.stdout.write(f"Skipping untracked detection at {bottom_center}.")
+                        for index, box in enumerate(boxes_xyxy):
+                            point = get_bottom_center_from_xyxy(box)
+                            inside = is_point_in_zone(
+                                zone, point[0], point[1],
+                                frame_width=width, frame_height=height,
+                            )
+                            track_id = track_ids[index] if index < len(track_ids) else None
+                            detections.append((track_id, inside, point))
 
-                if tracker.state == "confirmed" and not alert_active:
+                decision = tracker.observe_frame(any(inside for _, inside, _ in detections))
+                if decision == "candidate":
+                    self.stdout.write("Candidate person inside restricted zone.")
+                elif decision == "confirmed" and not alert_active:
+                    self.stdout.write(self.style.WARNING("Restricted-zone occupancy confirmed."))
+                elif decision == "cleared":
+                    self.stdout.write(self.style.WARNING("Restricted-zone event cleared."))
+
+                if tracker.active and not alert_active:
                     now = time.monotonic()
                     if now - last_alert_time < cooldown:
                         self.stdout.write("Cooldown active; incident remains suppressed.")
@@ -214,6 +210,20 @@ class Command(BaseCommand):
                         severity=Incident.Severity.HIGH,
                         people_affected=1,
                     )
+                    # The shared duplicate detector can mistake separate CCTV
+                    # restricted zones at one location for the same incident.
+                    # Clear only different-zone restricted-area false positives,
+                    # preserving warnings for other Security incident reports.
+                    duplicate = incident.possible_duplicate_of
+                    if (
+                        duplicate is not None
+                        and duplicate.source.name == "CCTV Monitoring"
+                        and duplicate.title.startswith("CCTV Restricted Zone [")
+                        and duplicate.title != incident_title
+                    ):
+                        incident.possible_duplicate_of = None
+                        incident.save(update_fields=["possible_duplicate_of"])
+
                     self.stdout.write(self.style.SUCCESS(f"Incident #{incident.pk} created for zone {zone.zone_id}."))
                     if incident.possible_duplicate_of_id:
                         self.stdout.write(self.style.WARNING("Possible duplicate of an existing Security incident; team assignment suppressed."))
@@ -227,7 +237,7 @@ class Command(BaseCommand):
                     alert_active = True
                     last_alert_time = now
 
-                if tracker.state in {"outside", "clearing"}:
+                if decision == "cleared":
                     alert_active = False
 
                 if save_annotated and frame is not None:

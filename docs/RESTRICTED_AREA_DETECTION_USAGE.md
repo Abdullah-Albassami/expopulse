@@ -1,6 +1,6 @@
 # Restricted-area detection guide
 
-This detector uses Ultralytics YOLO11 persons only, tracks them by ID when available, and checks whether the bottom center of each detected person falls inside a configured restricted polygon.
+This detector uses Ultralytics YOLO11 persons only, checks them as per-frame zone occupancy (tracking IDs optional), and checks whether the bottom center of each detected person falls inside a configured restricted polygon.
 
 ## Example config
 
@@ -28,7 +28,7 @@ python manage.py detect_restricted_area \
   --cooldown 60
 ```
 
-The detector creates one Security incident titled `CCTV Restricted Zone [STAFF_ONLY_A] - Zone A` when one tracked person stays inside the zone long enough. It suppresses extra incidents while the same unresolved incident remains active and respects the shared duplicate service by not assigning a team when `possible_duplicate_of` is set.
+Different restricted zones at the same location are not treated as duplicates of each other; other existing Security incident duplicate warnings remain in effect. The detector creates one Security incident titled `CCTV Restricted Zone [STAFF_ONLY_A] - Zone A` when one tracked person stays inside the zone long enough. It suppresses extra incidents while the same unresolved incident remains active and respects the shared duplicate service by not assigning a team when `possible_duplicate_of` is set.
 
 ## Live simulated CCTV with HLS
 
@@ -86,4 +86,4 @@ PowerShell:
 
 - This is a camera-plane approximation and does not prove authorization.
 - Occlusion, perspective distortion, truncated persons, and missed detections can affect the decision.
-- If track IDs are absent or unstable, the detector skips confirmation rather than mixing different people into the same event.
+- Tracking IDs are optional. The detector confirms continuous zone occupancy over sampled frames, including multiple people, and clears after consecutive sampled frames without a person in the zone. It cannot determine individual identities.

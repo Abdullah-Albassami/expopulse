@@ -8,6 +8,7 @@ from incidents.cctv.restricted_area import (
     PolygonZone,
     ZoneConfigError,
     ZonePresenceTracker,
+    ZoneOccupancyTracker,
     find_active_restricted_zone_incident,
     load_zone_config,
 )
@@ -83,3 +84,38 @@ class RestrictedAreaIncidentTests(TestCase):
             people_affected=1,
         )
         self.assertIsNone(find_active_restricted_zone_incident(self.location, "STAFF_ONLY_A"))
+
+class RestrictedAreaOccupancyTests(TestCase):
+    def test_multiple_people_and_track_changes_confirm_continuous_occupancy(self):
+        tracker = ZoneOccupancyTracker(confirm_frames=3, clear_frames=2)
+        self.assertEqual(tracker.observe_frame(True), "candidate")
+        self.assertEqual(tracker.observe_frame(True), "candidate")
+        self.assertEqual(tracker.observe_frame(True), "confirmed")
+        self.assertTrue(tracker.active)
+
+    def test_empty_frames_clear_event_and_allow_new_entry(self):
+        tracker = ZoneOccupancyTracker(confirm_frames=2, clear_frames=3)
+        self.assertEqual(tracker.observe_frame(True), "candidate")
+        self.assertEqual(tracker.observe_frame(True), "confirmed")
+        self.assertEqual(tracker.observe_frame(False), "clearing")
+        self.assertEqual(tracker.observe_frame(False), "clearing")
+        self.assertEqual(tracker.observe_frame(False), "cleared")
+        self.assertFalse(tracker.active)
+        self.assertEqual(tracker.observe_frame(True), "candidate")
+        self.assertEqual(tracker.observe_frame(True), "confirmed")
+
+    def test_intermittent_missing_detection_does_not_prematurely_clear(self):
+        tracker = ZoneOccupancyTracker(confirm_frames=2, clear_frames=3)
+        tracker.observe_frame(True)
+        tracker.observe_frame(True)
+        self.assertEqual(tracker.observe_frame(False), "clearing")
+        self.assertEqual(tracker.observe_frame(True), "confirmed")
+        self.assertEqual(tracker.observe_frame(False), "clearing")
+        self.assertTrue(tracker.active)
+
+    def test_candidate_does_not_survive_empty_frame(self):
+        tracker = ZoneOccupancyTracker(confirm_frames=3, clear_frames=2)
+        tracker.observe_frame(True)
+        tracker.observe_frame(True)
+        self.assertEqual(tracker.observe_frame(False), "outside")
+        self.assertEqual(tracker.observe_frame(True), "candidate")
