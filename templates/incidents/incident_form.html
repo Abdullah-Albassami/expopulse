@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Report an incident{% endblock %}
+{% block title %}Report incident manually{% endblock %}
 
 {% block content %}
 {% comment %}
@@ -24,10 +24,12 @@
 
 <div class="lead lead-small">
     <div>
-        <h1>Report an incident</h1>
-        <p>Priority and duplicate checks happen automatically after you send it.</p>
+        <h1>Report incident manually</h1>
+        <p>Use this form for staff or operator reports. CCTV and equipment alerts are generated automatically. Priority and possible duplicates are calculated when you submit.</p>
     </div>
 </div>
+
+<p class="ops-note">Reporting channel: <strong>Manual Report</strong>. Automated monitoring sources cannot be selected here.</p>
 
 <form class="form-card" method="post" data-validate>
     {% csrf_token %}
