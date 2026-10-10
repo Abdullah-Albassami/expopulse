@@ -246,13 +246,35 @@ class FaultLifecycleTests(EquipmentTestCase):
         second_incident = self.equipment_incidents("ELEV-A2").get()
         self.assertEqual(first_incident.assigned_team, team_one)
 
-        # The shared detector flags the second device (same type + location).
-        # It is kept as a distinct incident, but no second team is auto-assigned.
-        self.assertEqual(second_incident.possible_duplicate_of, first_incident)
-        self.assertIsNone(second_incident.assigned_team)
-        self.assertEqual(second_incident.status, Incident.Status.NEW)
+        # Different devices at the same location are distinct equipment faults.
+        # Both receive an available Maintenance team, without a false duplicate.
+        self.assertIsNone(first_incident.possible_duplicate_of)
+        self.assertIsNone(second_incident.possible_duplicate_of)
+        self.assertEqual(second_incident.assigned_team, team_two)
+        self.assertEqual(second_incident.status, Incident.Status.ASSIGNED)
         team_two.refresh_from_db()
-        self.assertEqual(team_two.status, Team.Status.AVAILABLE)
+        self.assertEqual(team_two.status, Team.Status.BUSY)
+
+    def test_equipment_fault_still_flags_non_equipment_maintenance_duplicate(self):
+        # Preserve the shared detector for a human-reported Maintenance incident.
+        other_source = IncidentSource.objects.create(
+            name="Staff report", source_type=IncidentSource.SourceType.STAFF
+        )
+        from incidents.services.incident_service import create_incident
+
+        existing = create_incident(
+            title="Lift maintenance reported by staff",
+            description="Maintenance requested",
+            incident_type=Incident.IncidentType.MAINTENANCE,
+            source=other_source,
+            location=self.location,
+            severity=Incident.Severity.HIGH,
+        )
+        response = self.post(make_fault("ELEV-A1"))
+        self.assertEqual(response.status_code, 201)
+        equipment_incident = self.equipment_incidents("ELEV-A1").get()
+        self.assertEqual(equipment_incident.possible_duplicate_of, existing)
+        self.assertIsNone(equipment_incident.assigned_team)
 
     def test_similar_equipment_ids_do_not_collide(self):
         self.post(make_fault("ELEV-A1"))

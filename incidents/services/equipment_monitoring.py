@@ -259,9 +259,21 @@ def process_reading(payload):
             people_affected=0,
         )
 
-        # The shared duplicate detector may flag a different device at the same
-        # location. The incident is still kept (it is a distinct device), but no
-        # second team is assigned automatically to a flagged duplicate.
+        # The general duplicate detector matches by type, location and time.
+        # Different equipment devices are independent faults, even at the same
+        # location. Clear only this equipment-to-equipment false positive;
+        # keep duplicate warnings involving other types of Maintenance reports.
+        duplicate = incident.possible_duplicate_of
+        if (
+            duplicate is not None
+            and duplicate.source.name == SOURCE_NAME
+            and duplicate.title.startswith("Equipment Fault [")
+            and duplicate.title.endswith("]")
+            and duplicate.title != incident.title
+        ):
+            incident.possible_duplicate_of = None
+            incident.save(update_fields=["possible_duplicate_of"])
+
         if not incident.possible_duplicate_of_id:
             assign_team_to_incident(incident)
 

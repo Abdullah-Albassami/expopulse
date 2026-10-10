@@ -184,12 +184,13 @@ Synthetic severity map: `EMERGENCY_STOP` → critical; `DOOR_STUCK`, `MOTOR_FAUL
   It is **not** an atomic uniqueness guarantee: with several server processes
   two simultaneous first faults could both create a row, because there is no
   database constraint (schema changes were out of scope).
-- **Shared duplicate detector.** `find_possible_duplicate` flags any unresolved
-  incident of the same type at the same location within 15 minutes. Two
-  *different* devices faulting at one location are therefore both created, but
-  the second is flagged `possible_duplicate_of` the first and does **not** get a
-  team automatically. An operator can assign one manually. The shared service
-  was not changed; changing this rule needs team-lead approval.
+- **Shared duplicate detector.** `find_possible_duplicate` still flags recent
+  unresolved Maintenance incidents at the same location. For equipment
+  faults from **different equipment IDs**, the equipment service clears the
+  false-positive duplicate link after creation, so both devices may receive
+  available Maintenance teams. If a staff-reported Maintenance incident is
+  the potential duplicate, the warning remains and automatic assignment is
+  withheld. The shared duplicate service is unchanged.
 - A renamed incident title or a changed source would break the link between an
   incident and its device.
 - If no Maintenance team is available the incident stays **New**.
