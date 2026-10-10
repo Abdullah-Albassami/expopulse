@@ -257,6 +257,7 @@ class FaultLifecycleTests(EquipmentTestCase):
 
     def test_equipment_fault_still_flags_non_equipment_maintenance_duplicate(self):
         # Preserve the shared detector for a human-reported Maintenance incident.
+        self.add_maintenance_team()
         other_source = IncidentSource.objects.create(
             name="Staff report", source_type=IncidentSource.SourceType.STAFF
         )
