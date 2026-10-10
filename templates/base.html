@@ -16,7 +16,16 @@
     {% with current=request.resolver_match.url_name %}
     <header class="topbar">
     <div class="top">
-        <a class="brand" href="{% url 'dashboard' %}">ExpoPulse</a>
+        <a class="brand" href="{% url 'dashboard' %}" aria-label="ExpoPulse, go to dashboard">
+            <svg viewBox="0 0 48 48" aria-hidden="true">
+                <defs><linearGradient id="logo-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
+                <circle cx="24" cy="24" r="19" fill="none" stroke="url(#logo-ring)" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="96 24" transform="rotate(20 24 24)"/>
+                <circle cx="24" cy="24" r="11" fill="none" stroke="#60a5fa" stroke-opacity=".35" stroke-width="2"/>
+                <path d="M5 24h11l3.5-9 6 18 3.5-9H45" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="45" cy="24" r="3" fill="#7dd3fc"/>
+            </svg>
+            <span class="brand-name">Expo<b>Pulse</b></span>
+        </a>
 
         <nav class="nav" aria-label="Main navigation">
             <a href="{% url 'dashboard' %}"
