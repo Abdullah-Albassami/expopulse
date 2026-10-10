@@ -85,7 +85,9 @@
         titleCell.appendChild(link);
         if (item.duplicate_of) titleCell.appendChild(el("span", "dupe", ` ⚠ Possible duplicate of #${item.duplicate_of}`));
         tr.appendChild(titleCell);
-        tr.appendChild(el("td", "", item.type));
+        const typeCell = el("td", "", item.type);
+        if (item.module) typeCell.appendChild(el("small", "ops-module", item.module));
+        tr.appendChild(typeCell);
         tr.appendChild(el("td", "", item.location));
         const priorityCell = el("td");
         const priorityPill = el("span", "pill", item.priority_label);
