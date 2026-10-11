@@ -4,12 +4,14 @@ All pose data is synthetic and YOLO / VideoCapture are mocked, so these tests
 never download weights or read real video.
 """
 
+import itertools
 import tempfile
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import cv2
 import numpy as np
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -18,13 +20,19 @@ from django.test import TestCase
 from incidents.cctv.fall_detection import (
     LYING,
     NOT_LYING,
+    RAPID,
+    SLOW,
+    StreamClock,
     UNCERTAIN,
+    UNOBSERVED,
     FallEventTracker,
     FallIncidentNotifier,
     IoUTrackAssociator,
     PoseObservation,
     classify_posture,
+    describe_transition,
     find_active_fall_incident,
+    measure_descent,
 )
 from incidents.models import Incident, IncidentSource, Location, Team
 from incidents.services.assignment import release_team_from_incident
@@ -180,6 +188,108 @@ class FallEventTrackerTests(TestCase):
         self.assertEqual(tracker.tracks[2].lying_count, 1)
 
 
+class TransitionEvidenceTests(TestCase):
+    """Standing-to-lying descent timing (track-agnostic, uses recent boxes)."""
+
+    def feed(self, tracker, sequence, start=0.0, step=0.1):
+        events = []
+        for index, (posture, box) in enumerate(sequence):
+            events += tracker.observe(start + index * step, [(1, posture, box)])
+        return events
+
+    def test_measure_descent_from_last_standing_box(self):
+        history = [(0.0, UPRIGHT_BOX), (0.3, UPRIGHT_BOX), (0.6, CROUCHING_BOX)]
+        self.assertAlmostEqual(measure_descent(history, 1.0, LYING_BOX), 0.7)
+
+    def test_measure_descent_without_nearby_standing_person_is_none(self):
+        self.assertIsNone(measure_descent([], 1.0, LYING_BOX))
+        far_away = (600, 20, 640, 205)
+        self.assertIsNone(measure_descent([(0.5, far_away)], 1.0, LYING_BOX))
+
+    def test_rapid_fall_confirms_normally(self):
+        tracker = FallEventTracker(confirm_frames=3)
+        events = self.feed(tracker, [(NOT_LYING, UPRIGHT_BOX)] * 3 + [(LYING, LYING_BOX)] * 3)
+        confirmed = [event for event in events if event.kind == "confirmed"]
+        self.assertEqual(len(confirmed), 1)
+        self.assertEqual(confirmed[0].transition, RAPID)
+
+    def test_person_first_seen_lying_still_confirms(self):
+        tracker = FallEventTracker(confirm_frames=3)
+        events = self.feed(tracker, [(LYING, LYING_BOX)] * 3)
+        self.assertEqual([event.transition for event in events if event.kind == "confirmed"], [UNOBSERVED])
+
+    def slow_lie_down(self):
+        # Standing, then 1.5 s kneeling/crouching, then lying (a deliberate lie-down).
+        return [(NOT_LYING, UPRIGHT_BOX)] * 3 + [(UNCERTAIN, CROUCHING_BOX)] * 15 + [(LYING, LYING_BOX)] * 5
+
+    def test_slow_lie_down_is_held_then_alerted_if_lying_continues(self):
+        tracker = FallEventTracker(confirm_frames=3, clear_frames=50, slow_lying_hold_seconds=2.0)
+        events = self.feed(tracker, self.slow_lie_down())
+        kinds = [event.kind for event in events]
+        self.assertIn("held", kinds)
+        self.assertNotIn("confirmed", kinds)
+        self.assertEqual(tracker.tracks[1].transition, SLOW)
+        # Lying continues past the 2 s hold → alert, with slow transition evidence.
+        later = self.feed(tracker, [(LYING, LYING_BOX)] * 20, start=2.3)
+        confirmed = [event for event in later if event.kind == "confirmed"]
+        self.assertEqual(len(confirmed), 1)
+        self.assertEqual(confirmed[0].transition, SLOW)
+
+    def test_slow_lie_down_then_standing_up_never_alerts(self):
+        tracker = FallEventTracker(confirm_frames=3, slow_lying_hold_seconds=2.0)
+        events = self.feed(tracker, self.slow_lie_down() + [(NOT_LYING, UPRIGHT_BOX)] * 3)
+        self.assertNotIn("confirmed", [event.kind for event in events])
+        self.assertEqual(tracker.tracks[1].state, "idle")
+
+    def test_hold_can_be_disabled(self):
+        tracker = FallEventTracker(confirm_frames=3, slow_lying_hold_seconds=0)
+        events = self.feed(tracker, self.slow_lie_down())
+        self.assertIn("confirmed", [event.kind for event in events])
+
+    def test_transition_description_for_operator(self):
+        self.assertIn("Rapid", describe_transition(RAPID, 0.4))
+        self.assertIn("Slow lie-down", describe_transition(SLOW, 2.5))
+        self.assertIn("already lying", describe_transition(UNOBSERVED, None))
+
+    def test_reset_drops_all_evidence(self):
+        tracker = FallEventTracker(confirm_frames=3)
+        self.feed(tracker, [(NOT_LYING, UPRIGHT_BOX), (LYING, LYING_BOX), (LYING, LYING_BOX)])
+        tracker.reset()
+        self.assertEqual(tracker.tracks, {})
+        self.assertEqual(len(tracker.history), 0)
+        events = self.feed(tracker, [(LYING, LYING_BOX)], start=5.0)
+        self.assertEqual([(event.kind, event.detail) for event in events], [("candidate", "1/3")])
+
+
+class StreamClockTests(TestCase):
+    def make_clock(self):
+        self.now = 100.0
+        return StreamClock(monotonic=lambda: self.now)
+
+    def test_follows_stream_timestamps_not_arrival_time(self):
+        clock = self.make_clock()
+        # A burst: three frames 100 ms apart in the stream arrive at the same instant.
+        times = [clock.tick(ms) for ms in (8000, 8100, 8200)]
+        self.assertEqual([round(t, 2) for t in times], [0.0, 0.1, 0.2])
+        self.assertTrue(clock.using_timestamps)
+
+    def test_falls_back_to_monotonic_without_timestamps(self):
+        clock = self.make_clock()
+        self.now = 102.5
+        self.assertAlmostEqual(clock.tick(0), 2.5)
+        self.assertFalse(clock.using_timestamps)
+
+    def test_never_runs_backwards_and_spans_reconnects(self):
+        clock = self.make_clock()
+        clock.tick(5000)
+        last = clock.tick(6000)  # 1.0 s
+        self.now = 110.0  # 10 s outage
+        clock.reconnect()
+        after = clock.tick(1000)  # timestamps restart after reconnect
+        self.assertGreaterEqual(after, 10.0)
+        self.assertGreater(after, last)
+        self.assertGreaterEqual(clock.tick(500), after)  # backwards jump re-anchors
+
 class IoUTrackAssociatorTests(TestCase):
     def test_overlapping_boxes_keep_id_and_distant_boxes_get_new_ids(self):
         associator = IoUTrackAssociator(iou_threshold=0.3, expiry_seconds=1.0)
@@ -187,6 +297,13 @@ class IoUTrackAssociatorTests(TestCase):
         second = associator.assign([(25, 182, 212, 216), (400, 20, 440, 200)], 0.2)
         self.assertEqual(first, second)
         self.assertNotEqual(first[0], first[1])
+
+    def test_reset_forgets_tracks_but_never_reuses_ids(self):
+        associator = IoUTrackAssociator()
+        [first] = associator.assign([LYING_BOX], 0.0)
+        associator.reset()
+        [after] = associator.assign([LYING_BOX], 0.1)
+        self.assertNotEqual(first, after)
 
     def test_expired_track_id_is_not_reused(self):
         associator = IoUTrackAssociator(expiry_seconds=1.0)
@@ -256,6 +373,31 @@ class FallIncidentTests(TestCase):
         self.assertIsNone(result.team)
         self.assertEqual(result.incident.status, Incident.Status.NEW)
 
+    def test_unrelated_cctv_medical_incident_is_not_treated_as_same_fall(self):
+        other = create_incident(
+            title="CCTV Medical Alert - Zone C", description="Another CCTV detector",
+            incident_type=Incident.IncidentType.MEDICAL, source=self.source, location=self.location,
+            severity=Incident.Severity.MEDIUM, people_affected=1,
+        )
+        self.assertIsNone(find_active_fall_incident(self.location))
+        result = self.notifier().notify(0.0)
+        self.assertEqual(result.outcome, "created")
+        # The shared duplicate service still warns about the nearby Medical incident.
+        self.assertEqual(result.incident.possible_duplicate_of, other)
+        self.assertEqual(Incident.objects.count(), 2)
+
+    def test_fall_at_another_location_is_not_suppressed(self):
+        self.notifier().notify(0.0)
+        other_location = Location.objects.create(name="Zone A")
+        result = FallIncidentNotifier(location=other_location, source=self.source).notify(0.0)
+        self.assertEqual(result.outcome, "created")
+
+    def test_transition_evidence_is_added_to_description_only(self):
+        result = self.notifier().notify(0.0, evidence="Rapid standing-to-lying transition observed (0.4 s).")
+        self.assertEqual(result.incident.title, "CCTV Possible Fall - Zone C")
+        self.assertIn("Rapid standing-to-lying transition", result.incident.description)
+        self.assertTrue(result.incident.description.endswith("Operator verification required."))
+
     def test_possible_duplicate_skips_assignment(self):
         staff = IncidentSource.objects.create(name="Staff", source_type=IncidentSource.SourceType.STAFF)
         existing = create_incident(
@@ -270,21 +412,31 @@ class FallIncidentTests(TestCase):
 
 
 class FakeCapture:
-    def __init__(self, frames, fps=10.0, opened=True):
+    """Stand-in for cv2.VideoCapture; ``position_step_ms`` simulates stream timestamps."""
+
+    def __init__(self, frames, fps=10.0, opened=True, position_step_ms=0.0, start_ms=0.0):
         self.frames = list(frames)
         self.fps = fps
         self.opened = opened
         self.released = False
+        self.position_step_ms = position_step_ms
+        self.position_ms = start_ms
+        self.frames_read = 0
 
     def isOpened(self):
         return self.opened
 
     def get(self, prop):
+        if prop == cv2.CAP_PROP_POS_MSEC:
+            return self.position_ms
         return self.fps
 
     def read(self):
         if not self.frames:
             return False, None
+        self.frames_read += 1
+        if self.position_step_ms:
+            self.position_ms += self.position_step_ms
         return True, self.frames.pop(0)
 
     def release(self):
@@ -304,9 +456,11 @@ def fake_result(observations):
 
 
 class DetectFallsCommandTests(TestCase):
+    """Local MP4 mode (video-time based)."""
+
     def setUp(self):
         self.location = Location.objects.create(name="Zone C")
-        Team.objects.create(name="Medical Team 1", team_type=Team.TeamType.MEDICAL)
+        self.medical = Team.objects.create(name="Medical Team 1", team_type=Team.TeamType.MEDICAL)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.video = Path(tmp.name) / "clip.mp4"
@@ -325,41 +479,78 @@ class DetectFallsCommandTests(TestCase):
             call_command("detect_falls", stdout=stdout, stderr=StringIO(), **defaults)
         return stdout.getvalue(), capture
 
-    def test_positive_fixture_creates_one_incident_and_then_clears(self):
+    def fall_then_recovery(self):
         lying = [make_observation(LYING_FLAT, LYING_BOX)]
         standing = [make_observation(UPRIGHT, (20, 130, 210, 215))]  # same spot, IoU 0.41 with the lying box
-        output, capture = self.run_command(
-            [[make_observation(UPRIGHT, UPRIGHT_BOX)]] + [lying] * 6 + [standing] * 3,
-            clear_frames=3,
-        )
-        self.assertIn("Possible Fall confirmed", output)
+        return [[make_observation(UPRIGHT, UPRIGHT_BOX)]] + [lying] * 6 + [standing] * 3
+
+    def test_local_mp4_fall_creates_one_incident_assigns_team_and_clears(self):
+        output, capture = self.run_command(self.fall_then_recovery(), clear_frames=3)
+        self.assertIn("Possible Fall Detected", output)
+        self.assertIn("rapid descent", output)
         self.assertIn("Assigned team: Medical Team 1", output)
         self.assertIn("visual event cleared", output)
-        self.assertEqual(Incident.objects.filter(incident_type=Incident.IncidentType.MEDICAL).count(), 1)
+        self.assertIn("End of video reached", output)
+        incident = Incident.objects.get()
+        self.assertEqual(incident.incident_type, Incident.IncidentType.MEDICAL)
+        self.assertEqual(incident.source.name, "CCTV Monitoring")
+        self.assertIn("Rapid standing-to-lying transition", incident.description)
         self.assertTrue(capture.released)
 
-    def test_negative_fixture_creates_no_incident(self):
+    def test_local_mp4_uses_video_time(self):
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)
+        lying = [[make_observation(LYING_FLAT, LYING_BOX)]] * 3
+        output, _ = self.run_command(lying, capture=FakeCapture([frame] * 6, fps=10.0), sample_every=2)
+        self.assertIn("[t=0.50s] Track 1: Possible Fall Detected", output)  # frame 6 at 10 fps
+
+    def test_visual_clearing_never_resolves_incident_or_releases_team(self):
+        self.run_command(self.fall_then_recovery(), clear_frames=3)
+        incident = Incident.objects.get()
+        self.medical.refresh_from_db()
+        self.assertEqual(incident.status, Incident.Status.ASSIGNED)
+        self.assertEqual(self.medical.status, Team.Status.BUSY)
+        # Operator resolves through the normal workflow; a new fall then creates a new incident.
+        release_team_from_incident(incident)
+        self.medical.refresh_from_db()
+        self.assertEqual(self.medical.status, Team.Status.AVAILABLE)
+        self.run_command(self.fall_then_recovery(), clear_frames=3)
+        self.assertEqual(Incident.objects.exclude(status=Incident.Status.RESOLVED).count(), 1)
+        self.assertEqual(Incident.objects.count(), 2)
+
+    def test_other_team_types_are_untouched(self):
+        security = Team.objects.create(name="Security Team 1", team_type=Team.TeamType.SECURITY)
+        maintenance = Team.objects.create(
+            name="Maintenance Team 1", team_type=Team.TeamType.MAINTENANCE, status=Team.Status.BUSY,
+        )
+        self.run_command(self.fall_then_recovery(), clear_frames=3)
+        security.refresh_from_db()
+        maintenance.refresh_from_db()
+        self.assertEqual(security.status, Team.Status.AVAILABLE)
+        self.assertEqual(maintenance.status, Team.Status.BUSY)
+
+    def test_normal_activity_creates_no_incident(self):
         frames = [
             [make_observation(points, box)]
             for points, box in [(UPRIGHT, UPRIGHT_BOX), (SITTING, SITTING_BOX), (CROUCHING, CROUCHING_BOX)] * 4
         ]
         frames.append([])  # empty frame
         output, _ = self.run_command(frames)
-        self.assertNotIn("confirmed", output)
+        self.assertNotIn("Possible Fall Detected", output)
         self.assertEqual(Incident.objects.count(), 0)
 
-    def test_rerun_on_same_footage_is_suppressed(self):
+    def test_same_unresolved_fall_is_suppressed_on_rerun(self):
         frames = [[make_observation(LYING_FLAT, LYING_BOX)]] * 4
         self.run_command(frames)
         output, _ = self.run_command(frames)
-        self.assertIn("Suppressed: unresolved CCTV Medical incident", output)
+        self.assertIn("Repeated event detected.", output)
+        self.assertIn("Duplicate suppressed.", output)
         self.assertEqual(Incident.objects.count(), 1)
 
     def test_sample_every_counts_processed_frames_only(self):
         frame = np.zeros((10, 10, 3), dtype=np.uint8)
         lying = [[make_observation(LYING_FLAT, LYING_BOX)]] * 2
         output, _ = self.run_command(lying, capture=FakeCapture([frame] * 6), sample_every=3, confirm_frames=3)
-        self.assertNotIn("confirmed", output)
+        self.assertNotIn("Possible Fall Detected", output)
 
     def test_absent_keypoints_are_reported_and_never_confirm(self):
         frames = [[PoseObservation(LYING_BOX, None, None)]] * 5
@@ -369,6 +560,18 @@ class DetectFallsCommandTests(TestCase):
         self.assertIn("no keypoints", output)
         self.assertEqual(Incident.objects.count(), 0)
 
+    def test_keyboard_interrupt_stops_cleanly_and_releases_capture(self):
+        frame = np.zeros((10, 10, 3), dtype=np.uint8)
+        capture = FakeCapture([frame] * 5)
+        model = MagicMock(task="pose")
+        model.predict.side_effect = [[fake_result([])], KeyboardInterrupt()]
+        stdout = StringIO()
+        with patch("incidents.management.commands.detect_falls.YOLO", return_value=model), \
+                patch("incidents.management.commands.detect_falls.cv2.VideoCapture", return_value=capture):
+            call_command("detect_falls", video=str(self.video), location="Zone C", sample_every=1, stdout=stdout)
+        self.assertIn("Monitoring stopped by operator", stdout.getvalue())
+        self.assertTrue(capture.released)
+
     def test_invalid_options_raise_useful_errors(self):
         cases = [
             (dict(confirm_frames=0), "--confirm-frames"),
@@ -376,6 +579,10 @@ class DetectFallsCommandTests(TestCase):
             (dict(confidence=0), "--confidence"),
             (dict(confidence=1.5), "--confidence"),
             (dict(cooldown=-1), "--cooldown"),
+            (dict(slow_lying_hold=-1), "--slow-lying-hold"),
+            (dict(rapid_descent=-1), "--rapid-descent"),
+            (dict(retry_delay=0), "--retry-delay"),
+            (dict(max_retries=-1), "--max-retries"),
             (dict(location="Nowhere"), "not found"),
             (dict(video="missing.mp4"), "Video file not found"),
         ]
@@ -403,3 +610,92 @@ class DetectFallsCommandTests(TestCase):
         with patch("incidents.management.commands.detect_falls.YOLO", return_value=MagicMock(task="detect")):
             with self.assertRaisesMessage(CommandError, "not a pose model"):
                 call_command("detect_falls", video=str(self.video), location="Zone C", stdout=StringIO())
+
+
+class DetectFallsStreamTests(TestCase):
+    """Simulated live HLS mode (monotonic-time based, reconnecting)."""
+
+    URL = "http://127.0.0.1:8080/live.m3u8"
+
+    def setUp(self):
+        Location.objects.create(name="Zone C")
+        Team.objects.create(name="Medical Team 1", team_type=Team.TeamType.MEDICAL)
+        self.frame = np.zeros((240, 320, 3), dtype=np.uint8)
+        self.lying = [make_observation(LYING_FLAT, LYING_BOX)]
+
+    def run_stream(self, captures, pose_frames, clock_step=0.5, **options):
+        model = MagicMock(task="pose")
+        model.predict.side_effect = [[fake_result(observations)] for observations in pose_frames]
+        stdout = StringIO()
+        defaults = dict(video=self.URL, location="Zone C", confirm_frames=4, sample_every=1, cooldown=0,
+                        max_retries=1)
+        defaults.update(options)
+        clock = itertools.count(100.0, clock_step)
+        with patch("incidents.management.commands.detect_falls.YOLO", return_value=model), \
+                patch("incidents.management.commands.detect_falls.cv2.VideoCapture", side_effect=captures), \
+                patch("incidents.management.commands.detect_falls.time.monotonic", side_effect=lambda: next(clock)), \
+                patch("incidents.management.commands.detect_falls.time.sleep") as sleep:
+            try:
+                call_command("detect_falls", stdout=stdout, stderr=StringIO(), **defaults)
+            except CommandError as exc:
+                stdout.write(f"\nCommandError: {exc}")
+        return stdout.getvalue(), sleep
+
+    def test_successful_hls_connection_uses_stream_timestamps(self):
+        # Frames arrive in a burst (clock_step=0) but are 200 ms apart in the stream.
+        captures = [FakeCapture([self.frame] * 5, fps=0, position_step_ms=200, start_ms=4000),
+                    FakeCapture([], opened=False)]
+        output, _ = self.run_stream(captures, [self.lying] * 5, clock_step=0)
+        self.assertIn("Connecting to HLS stream...", output)
+        self.assertIn("Video source connected.", output)
+        self.assertIn("Time base: stream timestamps.", output)
+        self.assertIn("[t=0.60s] Track 1: Possible Fall Detected", output)
+        self.assertEqual(Incident.objects.count(), 1)
+
+    def test_stream_without_timestamps_uses_monotonic_clock(self):
+        captures = [FakeCapture([self.frame] * 5, fps=0), FakeCapture([], opened=False)]
+        output, _ = self.run_stream(captures, [self.lying] * 5, clock_step=0.5)
+        self.assertIn("Time base: monotonic clock", output)
+        self.assertIn("Possible Fall Detected", output)
+        self.assertEqual(Incident.objects.count(), 1)
+
+    def test_stream_keeps_running_past_end_of_segment(self):
+        captures = [FakeCapture([self.frame] * 2), FakeCapture([self.frame] * 2), FakeCapture([], opened=False)]
+        output, sleep = self.run_stream(captures, [[]] * 4)
+        self.assertNotIn("End of video reached", output)
+        self.assertEqual(output.count("Video source connected."), 2)
+        self.assertTrue(sleep.called)
+
+    def test_interruption_resets_tracking_so_stale_evidence_cannot_confirm(self):
+        # 2 lying frames, outage, 2 lying frames: 4 in total, but never 4 in a row.
+        captures = [FakeCapture([self.frame] * 2), FakeCapture([self.frame] * 2), FakeCapture([], opened=False)]
+        output, _ = self.run_stream(captures, [self.lying] * 4, confirm_frames=4)
+        self.assertIn("Stream interrupted; tracking state reset.", output)
+        self.assertNotIn("Possible Fall Detected", output)
+        self.assertEqual(Incident.objects.count(), 0)
+
+    def test_fall_still_visible_after_reconnect_is_not_a_second_incident(self):
+        captures = [FakeCapture([self.frame] * 5), FakeCapture([self.frame] * 5), FakeCapture([], opened=False)]
+        output, _ = self.run_stream(captures, [self.lying] * 10)
+        self.assertEqual(output.count("Possible Fall Detected"), 2)
+        self.assertIn("Duplicate suppressed.", output)
+        self.assertEqual(Incident.objects.count(), 1)
+
+    def test_unavailable_stream_retries_then_reports_error_and_releases(self):
+        captures = [FakeCapture([], opened=False) for _ in range(3)]
+        output, sleep = self.run_stream(captures, [], max_retries=2, retry_delay=7)
+        self.assertIn("Stream unavailable. Retry 1 in 7 seconds.", output)
+        self.assertIn("CommandError: Stream unavailable; maximum reconnect attempts (2) reached.", output)
+        self.assertEqual(sleep.call_count, 2)
+        sleep.assert_called_with(7)
+        self.assertTrue(all(capture.released for capture in captures))
+
+    def test_reconnect_after_disconnect_resets_retry_counter(self):
+        # Fails once, recovers, fails again: never more than 1 consecutive retry.
+        captures = [
+            FakeCapture([self.frame]), FakeCapture([], opened=False), FakeCapture([self.frame]),
+            FakeCapture([], opened=False), FakeCapture([], opened=False),
+        ]
+        output, _ = self.run_stream(captures, [[]] * 2, max_retries=2)
+        self.assertEqual(output.count("Video source connected."), 2)
+        self.assertTrue(all(capture.released for capture in captures))

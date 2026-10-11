@@ -7,7 +7,10 @@ no fall classifier. This module adds a small, explicit rule set on top:
    UNCERTAIN using the principal axis of the confident body keypoints.
 2. ``IoUTrackAssociator`` gives detections stable per-person track IDs.
 3. ``FallEventTracker`` runs a candidate -> confirmed -> cleared state machine
-   per track, using processed observations and video time.
+   per track, using processed observations and video (or monotonic) time.
+   It also measures how quickly the person went from standing to lying: a
+   slow, observed lie-down (e.g. lying on a bed or floor on purpose) is only
+   alerted if the lying lasts much longer.
 4. ``FallIncidentNotifier`` turns a confirmation into at most one Medical
    incident per Location while a matching CCTV incident is unresolved.
 
@@ -16,6 +19,8 @@ not a medical diagnosis and carry no measured accuracy.
 """
 
 import math
+import time
+from collections import deque
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -31,6 +36,10 @@ LEFT_HIP, RIGHT_HIP = 11, 12
 BODY_KEYPOINTS = tuple(range(5, 17))  # shoulders to ankles; face points excluded
 SHOULDERS = (LEFT_SHOULDER, RIGHT_SHOULDER)
 HIPS = (LEFT_HIP, RIGHT_HIP)
+
+RAPID = "rapid"
+SLOW = "slow"
+UNOBSERVED = "unobserved"
 
 LYING = "lying"
 NOT_LYING = "not_lying"
@@ -129,6 +138,48 @@ def classify_posture(observation, thresholds=PostureThresholds()):
     return PostureAssessment(UNCERTAIN, "body axis oblique", **details)
 
 
+class StreamClock:
+    """Timeline (seconds) for live HLS streams.
+
+    HLS frames arrive in bursts: a 2 s segment may be decoded in 0.1 s and
+    then nothing arrives for 2 s, so arrival time (wall or monotonic clock)
+    says little about how fast something happened in the scene. The clock
+    therefore follows the stream's presentation timestamps
+    (``CAP_PROP_POS_MSEC``) when they are present and moving forward. When
+    they are missing it falls back to the monotonic clock, and when they jump
+    backwards it re-anchors. The timeline never runs backwards and continues
+    across reconnects, where an outage counts at least its monotonic duration
+    (so cooldowns stay meaningful).
+    """
+
+    def __init__(self, monotonic=None):
+        self._monotonic = monotonic or time.monotonic
+        self._start = self._monotonic()
+        self._last = 0.0
+        self._anchor = None  # (stream_seconds, timeline_seconds)
+        self._last_position = None
+        self.using_timestamps = False
+
+    def reconnect(self):
+        self._anchor = None
+        self._last_position = None
+        self._last = max(self._last, self._monotonic() - self._start)
+
+    def tick(self, position_ms):
+        position = position_ms / 1000.0 if position_ms and math.isfinite(position_ms) and position_ms > 0 else None
+        if position is None:
+            self.using_timestamps = False
+            self._anchor = None
+            self._last = max(self._last, self._monotonic() - self._start)
+            return self._last
+        self.using_timestamps = True
+        if self._anchor is None or position < self._last_position:
+            self._anchor = (position, self._last)
+        self._last_position = position
+        self._last = max(self._last, self._anchor[1] + (position - self._anchor[0]))
+        return self._last
+
+
 def box_iou(box_a, box_b):
     ax1, ay1, ax2, ay2 = box_a
     bx1, by1, bx2, by2 = box_b
@@ -183,6 +234,10 @@ class IoUTrackAssociator:
             self.tracks[assigned[index]] = (tuple(float(value) for value in box), timestamp)
         return assigned
 
+    def reset(self):
+        """Forget all tracks (e.g. after a stream outage). IDs are still never reused."""
+        self.tracks.clear()
+
     def expire(self, timestamp):
         for track_id, (_, last_seen) in list(self.tracks.items()):
             if timestamp - last_seen > self.expiry_seconds:
@@ -191,10 +246,12 @@ class IoUTrackAssociator:
 
 @dataclass(frozen=True)
 class FallEvent:
-    kind: str  # candidate, candidate_reset, confirmed, recovering, cleared, expired
+    kind: str  # candidate, held, candidate_reset, confirmed, recovering, cleared, expired
     track_id: int
     timestamp: float
     detail: str = ""
+    transition: str = ""  # rapid, slow, unobserved (set on candidate/held/confirmed)
+    descent_seconds: float | None = None
 
 
 @dataclass
@@ -204,6 +261,37 @@ class _TrackState:
     uncertain_count: int = 0
     recovery_count: int = 0
     last_seen: float = 0.0
+    candidate_start: float | None = None
+    transition: str = ""
+    descent_seconds: float | None = None
+    held_reported: bool = False
+
+
+def measure_descent(history, timestamp, lying_box, lookback_seconds=6.0):
+    """Seconds from the last full-height standing observation to ``timestamp``.
+
+    ``history`` holds (timestamp, box) of recent detections of *any* track,
+    because the tracker often assigns a new ID while a person falls. Only
+    boxes horizontally near the lying box are used. A box at least 1.5x as
+    tall as it is wide counts as standing; the person was still standing
+    while their box top was within 20% of standing height of the highest
+    standing box top. Returns None when nobody was seen standing nearby
+    (e.g. the person was already lying when first observed).
+    """
+    x1, _, x2, _ = lying_box
+    length = x2 - x1
+    nearby = [
+        (seen_at, box) for seen_at, box in history
+        if timestamp - seen_at <= lookback_seconds
+        and x1 - length / 2 <= (box[0] + box[2]) / 2 <= x2 + length / 2
+    ]
+    standing = [box for _, box in nearby if (box[3] - box[1]) >= 1.5 * (box[2] - box[0])]
+    if not standing:
+        return None
+    height = max(box[3] - box[1] for box in standing)
+    top = min(box[1] for box in standing)
+    last_standing = max(seen_at for seen_at, box in nearby if box[1] <= top + 0.2 * height)
+    return timestamp - last_standing
 
 
 @dataclass
@@ -219,48 +307,111 @@ class FallEventTracker:
     - A track missing for more than ``expiry_seconds`` of video time is
       dropped; a confirmed track is then reported as expired (cleared by
       absence). Short gaps do not clear anything.
+    - Transition evidence (only when observations include boxes): when a
+      candidate starts, ``measure_descent`` classifies it as RAPID
+      (<= ``rapid_descent_seconds``), SLOW, or UNOBSERVED. RAPID and
+      UNOBSERVED confirm normally, so someone first seen already lying is
+      still alerted. A SLOW, observed lie-down confirms only after
+      ``slow_lying_hold_seconds`` of continued lying (0 disables the hold).
     """
 
     confirm_frames: int = 5
     clear_frames: int = 10
     expiry_seconds: float = 3.0
+    rapid_descent_seconds: float = 1.1
+    slow_lying_hold_seconds: float = 60.0
+    lookback_seconds: float = 6.0
     tracks: dict = field(default_factory=dict)
+    history: deque = field(default_factory=deque)
 
     def __post_init__(self):
         if self.confirm_frames < 1 or self.clear_frames < 1:
             raise ValueError("Frame thresholds must be positive.")
         if self.expiry_seconds < 0:
             raise ValueError("Track expiry must be nonnegative.")
+        if self.rapid_descent_seconds < 0 or self.slow_lying_hold_seconds < 0:
+            raise ValueError("Transition thresholds must be nonnegative.")
+
+    def reset(self):
+        """Drop all per-person evidence, e.g. after a stream outage.
+
+        Frames before and after a gap may show different people or a changed
+        scene, so candidate counts must not be combined across it. A fall that
+        is still visible after reconnecting is confirmed again from fresh
+        evidence, and the unresolved-incident check prevents a second row.
+        """
+        self.tracks.clear()
+        self.history.clear()
 
     @property
     def confirmed_tracks(self):
         return [track_id for track_id, track in self.tracks.items() if track.state == "confirmed"]
 
     def observe(self, timestamp, observations):
-        """Process one sampled frame: ``observations`` is [(track_id, posture), ...]."""
+        """Process one sampled frame.
+
+        ``observations`` is [(track_id, posture), ...] or
+        [(track_id, posture, box), ...]; boxes enable transition evidence.
+        """
         events = []
-        for track_id, posture in observations:
+        for observation in observations:
+            track_id, posture = observation[0], observation[1]
+            box = observation[2] if len(observation) > 2 else None
             if track_id is None:
                 continue
             track = self.tracks.setdefault(track_id, _TrackState())
             track.last_seen = timestamp
-            events.extend(self._step(track_id, track, posture, timestamp))
+            events.extend(self._step(track_id, track, posture, timestamp, box))
+        for observation in observations:
+            if len(observation) > 2 and observation[2] is not None:
+                self.history.append((timestamp, tuple(observation[2])))
+        while self.history and timestamp - self.history[0][0] > self.lookback_seconds:
+            self.history.popleft()
         events.extend(self._expire(timestamp))
         return events
 
-    def _step(self, track_id, track, posture, timestamp):
+    def _event(self, kind, track_id, track, timestamp, detail=""):
+        return FallEvent(kind, track_id, timestamp, detail, track.transition, track.descent_seconds)
+
+    def _step(self, track_id, track, posture, timestamp, box=None):
         if posture == LYING:
             track.uncertain_count = 0
             if track.state == "confirmed":
                 track.recovery_count = 0
                 return []
-            track.state = "candidate"
+            if track.state == "idle":
+                track.state = "candidate"
+                if not track.transition:
+                    track.candidate_start = timestamp
+                    track.descent_seconds = (
+                        measure_descent(self.history, timestamp, box, self.lookback_seconds)
+                        if box is not None else None
+                    )
+                    if track.descent_seconds is None:
+                        track.transition = UNOBSERVED
+                    elif track.descent_seconds <= self.rapid_descent_seconds:
+                        track.transition = RAPID
+                    else:
+                        track.transition = SLOW
             track.lying_count += 1
-            if track.lying_count >= self.confirm_frames:
-                track.state = "confirmed"
-                track.recovery_count = 0
-                return [FallEvent("confirmed", track_id, timestamp)]
-            return [FallEvent("candidate", track_id, timestamp, f"{track.lying_count}/{self.confirm_frames}")]
+            if track.lying_count < self.confirm_frames:
+                return [self._event("candidate", track_id, track, timestamp, f"{track.lying_count}/{self.confirm_frames}")]
+            if (
+                track.transition == SLOW
+                and self.slow_lying_hold_seconds > 0
+                and timestamp - track.candidate_start < self.slow_lying_hold_seconds
+            ):
+                if track.held_reported:
+                    return []
+                track.held_reported = True
+                return [self._event(
+                    "held", track_id, track, timestamp,
+                    f"slow lie-down ({track.descent_seconds:.1f}s); alert only if lying continues "
+                    f"{self.slow_lying_hold_seconds:g}s",
+                )]
+            track.state = "confirmed"
+            track.recovery_count = 0
+            return [self._event("confirmed", track_id, track, timestamp)]
 
         if posture == NOT_LYING:
             track.uncertain_count = 0
@@ -279,7 +430,9 @@ class FallEventTracker:
         if track.state == "candidate":
             track.uncertain_count += 1
             if track.uncertain_count > self.clear_frames:
-                self._reset(track)
+                # The person was never seen getting up, so keep the transition
+                # evidence (and a slow lie-down's hold timer) for when lying resumes.
+                self._reset(track, keep_transition=True)
                 return [FallEvent("candidate_reset", track_id, timestamp, "pose uncertain too long")]
         return []
 
@@ -293,11 +446,25 @@ class FallEventTracker:
         return events
 
     @staticmethod
-    def _reset(track):
+    def _reset(track, keep_transition=False):
         track.state = "idle"
         track.lying_count = 0
         track.uncertain_count = 0
         track.recovery_count = 0
+        if not keep_transition:
+            track.candidate_start = None
+            track.transition = ""
+            track.descent_seconds = None
+            track.held_reported = False
+
+
+def describe_transition(transition, descent_seconds):
+    """Operator-facing summary of the transition evidence for a confirmation."""
+    if transition == RAPID:
+        return f"Rapid standing-to-lying transition observed ({descent_seconds:.1f} s)."
+    if transition == SLOW:
+        return f"Slow lie-down observed ({descent_seconds:.1f} s) and the person stayed lying."
+    return "Person was already lying when first observed; no standing-to-lying transition seen."
 
 
 def fall_incident_title(location):
@@ -305,12 +472,18 @@ def fall_incident_title(location):
 
 
 def find_active_fall_incident(location, *, source_name=CCTV_SOURCE_NAME):
-    """Return an unresolved Medical CCTV incident at this Location, if any."""
+    """Return the unresolved CCTV possible-fall incident at this Location, if any.
+
+    Fall incidents are identified by their stable title, so other Medical
+    incidents at the same Location (staff reports or other CCTV detectors)
+    are never treated as the same fall.
+    """
     return (
         Incident.objects.filter(
             incident_type=Incident.IncidentType.MEDICAL,
             source__name=source_name,
             location=location,
+            title=fall_incident_title(location),
         )
         .exclude(status=Incident.Status.RESOLVED)
         .order_by("-created_at", "-pk")
@@ -341,7 +514,7 @@ class FallIncidentNotifier:
     cooldown_seconds: float = 120.0
     last_created_at: float | None = None
 
-    def notify(self, timestamp):
+    def notify(self, timestamp, evidence=""):
         from incidents.services.assignment import assign_team_to_incident
         from incidents.services.incident_service import create_incident
 
@@ -356,7 +529,8 @@ class FallIncidentNotifier:
             title=fall_incident_title(self.location),
             description=(
                 "Possible fall or sustained lying posture detected from CCTV pose evidence. "
-                "Operator verification required."
+                + (f"{evidence} " if evidence else "")
+                + "Operator verification required."
             ),
             incident_type=Incident.IncidentType.MEDICAL,
             source=self.source,
