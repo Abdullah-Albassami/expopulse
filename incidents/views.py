@@ -14,6 +14,7 @@ from .services.assignment import (
 )
 from .services.incident_service import create_incident
 from .services.monitoring_channels import monitoring_channel
+from .services.briefing import incident_briefing
 from .services.workflow import update_incident_status
 
 
@@ -141,6 +142,7 @@ def incident_detail(request, incident_id):
         suggested_team = find_suitable_team(incident)
     return render(request, "incidents/incident_detail.html", {
         "incident": incident,
+        "briefing": incident_briefing(incident),
         "suggested_team": suggested_team,
     })
 
