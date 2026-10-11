@@ -14,7 +14,7 @@
                 <span class="pill" data-priority="{{ incident.priority_level }}">{{ incident.get_priority_level_display|default:incident.priority_level }}</span>
                 <span class="status-dot" data-status="{{ incident.status }}">{{ incident.get_status_display|default:incident.status }}</span>
             </div>
-            <h1>{{ incident.title }}</h1>
+            <h1>{{ briefing.title }}</h1>
             <p class="detail-where">{{ incident.location }}</p>
         </div>
 
@@ -35,8 +35,13 @@
 {% endif %}
 
 <section class="card detail-desc">
-    <h2>What happened</h2>
+    <h2>Detected issue</h2>
+    {% if briefing.fault %}<p><strong>Fault: {{ briefing.fault }}</strong></p>{% endif %}
     <p>{{ incident.description|default:"No description was given." }}</p>
+    {% if briefing.response %}
+    <h3 class="ops-response-heading">Operator response guidance</h3>
+    <p>{{ briefing.response }}</p>
+    {% endif %}
 </section>
 
 <dl class="fact-grid">
@@ -53,10 +58,14 @@
         <dt>Severity</dt>
         <dd>{{ incident.get_severity_display|default:incident.severity }}</dd>
     </div>
-    <div class="card fact">
-        <dt>People affected</dt>
-        <dd>{{ incident.people_affected|default:0 }}</dd>
-    </div>
+    {% if briefing.equipment_id %}
+    <div class="card fact"><dt>Equipment ID</dt><dd>{{ briefing.equipment_id }}</dd></div>
+    <div class="card fact"><dt>Equipment type</dt><dd>{{ briefing.equipment_type }}</dd></div>
+    <div class="card fact"><dt>Fault detected</dt><dd>{{ briefing.fault }}</dd></div>
+    <div class="card fact"><dt>Passenger impact</dt><dd>Not reported <small>Requires operator verification</small></dd></div>
+    {% elif briefing.show_people %}
+    <div class="card fact"><dt>People affected (reported)</dt><dd>{{ incident.people_affected }}</dd></div>
+    {% endif %}
     <div class="card fact">
         <dt>Incident category</dt>
         <dd>{{ incident.get_incident_type_display|default:incident.incident_type }}</dd>
