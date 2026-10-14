@@ -512,6 +512,7 @@ class FallIncidentNotifier:
     location: object
     source: object
     cooldown_seconds: float = 120.0
+    demo_priority: str | None = None
     last_created_at: float | None = None
 
     def notify(self, timestamp, evidence=""):
@@ -538,6 +539,9 @@ class FallIncidentNotifier:
             severity=Incident.Severity.HIGH,
             people_affected=1,
         )
+        if self.demo_priority:
+            from incidents.services.demo_priority import apply_demo_priority
+            apply_demo_priority(incident, self.demo_priority)
         self.last_created_at = timestamp
 
         team = None
