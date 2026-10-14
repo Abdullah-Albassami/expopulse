@@ -230,6 +230,29 @@ class Command(BaseCommand):
                     )
                     continue
 
+                # A fresh episode or process restart must not generate a
+                # second incident while this CCTV location has an open alert.
+                existing = (
+                    Incident.objects.filter(
+                        title=f"CCTV Crowding Alert - {location.name}",
+                        source=source,
+                        location=location,
+                        incident_type=Incident.IncidentType.CROWDING,
+                        is_archived=False,
+                    )
+                    .exclude(status=Incident.Status.RESOLVED)
+                    .order_by("-created_at", "-pk")
+                    .first()
+                )
+                if existing is not None:
+                    alert_active = True
+                    last_alert_time = now
+                    self.stdout.write(
+                        f"Existing unresolved CCTV crowding incident "
+                        f"#{existing.pk}; duplicate suppressed."
+                    )
+                    continue
+
                 self.stdout.write(
                     self.style.WARNING(
                         f"CROWDING DETECTED: {people_count} people "
