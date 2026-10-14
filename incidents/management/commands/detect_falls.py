@@ -80,6 +80,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--video", required=True, help="Local MP4 path or HTTP(S) HLS playlist URL.")
+        parser.add_argument("--demo-priority", choices=["critical"], default=None, help="Explicit demo-only incident priority.")
         parser.add_argument("--location", required=True, help="Exact existing Location name.")
         parser.add_argument("--confirm-frames", type=int, default=5,
                             help="Lying observations of one person (processed frames) needed to confirm.")
@@ -196,7 +197,7 @@ class Command(BaseCommand):
                 rapid_descent_seconds=rapid_descent,
                 slow_lying_hold_seconds=slow_lying_hold,
             )
-            notifier = FallIncidentNotifier(location=location, source=source, cooldown_seconds=cooldown)
+            notifier = FallIncidentNotifier(location=location, source=source, cooldown_seconds=cooldown, demo_priority=options["demo_priority"])
             pending_alert = None
             annotated_saved = False
             warned_no_keypoints = False
