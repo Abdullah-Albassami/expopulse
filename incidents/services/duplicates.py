@@ -17,6 +17,7 @@ def find_possible_duplicate(incident, minutes=15):
     )
 
     duplicates = Incident.objects.filter(
+        is_archived=False,
         incident_type=incident.incident_type,
         location=incident.location,
         created_at__gte=time_threshold,
