@@ -27,6 +27,7 @@ class Command(BaseCommand):
         parser.add_argument("--video", required=True, help="MP4 path or HLS URL.")
         parser.add_argument("--location", required=True, help="Exact existing Location name.")
         parser.add_argument("--zone-config", required=True, help="JSON file with zone_id, name, and polygon.")
+        parser.add_argument("--demo-priority", choices=["medium"], default=None, help="Explicit demo-only incident priority.")
         parser.add_argument("--confirm-frames", type=int, default=5)
         parser.add_argument("--clear-frames", type=int, default=10)
         parser.add_argument("--sample-every", type=int, default=1)
@@ -210,6 +211,9 @@ class Command(BaseCommand):
                         severity=Incident.Severity.HIGH,
                         people_affected=1,
                     )
+                    if options["demo_priority"]:
+                        from incidents.services.demo_priority import apply_demo_priority
+                        apply_demo_priority(incident, options["demo_priority"])
                     # The shared duplicate detector can mistake separate CCTV
                     # restricted zones at one location for the same incident.
                     # Clear only different-zone restricted-area false positives,
