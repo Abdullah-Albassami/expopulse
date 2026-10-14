@@ -102,14 +102,14 @@ run_detector() {
   local url="http://127.0.0.1:$port/live.m3u8"
   case "$name" in
     crowd)
-      "$VENV_PY" manage.py detect_crowding --video "$url" \
+      exec "$VENV_PY" manage.py detect_crowding --video "$url" \
         --location "Transport Hub" --threshold 5 --frames 3 --sample-every 5 --demo-priority high ;;
     restricted)
-      "$VENV_PY" manage.py detect_restricted_area --video "$url" \
+      exec "$VENV_PY" manage.py detect_restricted_area --video "$url" \
         --location "Zone A" --zone-config configs/restricted_zone.example.json \
         --confirm-frames 5 --sample-every 1 --confidence 0.35 --demo-priority medium ;;
     fall)
-      "$VENV_PY" manage.py detect_falls --video "$url" \
+      exec "$VENV_PY" manage.py detect_falls --video "$url" \
         --location "Zone A" --sample-every 3 --confirm-frames 5 \
         --confidence 0.25 --retry-delay 5 --max-retries 0 --demo-priority critical ;;
   esac
