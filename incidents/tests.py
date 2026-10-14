@@ -341,3 +341,69 @@ class IncidentCreationTests(TestCase):
         incident = self.create_medical_incident()
 
         self.assertIsNone(incident.possible_duplicate_of)
+
+
+class IncidentManagementTests(TestCase):
+    def setUp(self):
+        from incidents.models import Team
+        self.location = Location.objects.create(name="Demo Zone")
+        self.source = IncidentSource.objects.create(name="Camera", source_type="system")
+        self.team = Team.objects.create(name="Demo Security", team_type="security", status="busy")
+        self.active = Incident.objects.create(
+            title="Live crowd", description="Demo", incident_type="crowding",
+            source=self.source, location=self.location, severity="high",
+            assigned_team=self.team, status="assigned",
+        )
+        self.resolved = Incident.objects.create(
+            title="Old alert", description="Demo", incident_type="crowding",
+            source=self.source, location=self.location, severity="low",
+            status="resolved",
+        )
+
+    def test_get_does_not_modify(self):
+        response = self.client.get("/incidents/manage/")
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(Incident.objects.filter(is_archived=True).count(), 0)
+
+    def test_archive_resolved_only(self):
+        response = self.client.post("/incidents/manage/", {"action": "archive_resolved", "confirm": "yes"})
+        self.assertEqual(response.status_code, 302)
+        self.active.refresh_from_db()
+        self.resolved.refresh_from_db()
+        self.assertFalse(self.active.is_archived)
+        self.assertTrue(self.resolved.is_archived)
+
+    def test_selected_active_cannot_be_archived(self):
+        self.client.post("/incidents/manage/", {
+            "action": "archive_selected", "confirm": "yes", "incident_ids": [self.active.pk]
+        })
+        self.active.refresh_from_db()
+        self.assertFalse(self.active.is_archived)
+
+    def test_prepare_demo_preserves_and_releases(self):
+        from incidents.models import Team
+        self.client.post("/incidents/manage/", {"action": "prepare_demo", "confirm": "yes"})
+        self.active.refresh_from_db()
+        self.resolved.refresh_from_db()
+        self.team.refresh_from_db()
+        self.assertTrue(self.active.is_archived)
+        self.assertTrue(self.resolved.is_archived)
+        self.assertEqual(self.active.status, "resolved")
+        self.assertEqual(self.team.status, Team.Status.AVAILABLE)
+        self.assertEqual(Incident.objects.count(), 2)
+        self.assertEqual(Incident.objects.filter(is_archived=False).count(), 0)
+
+    def test_restore_selected(self):
+        self.resolved.is_archived = True
+        self.resolved.save(update_fields=["is_archived"])
+        self.client.post("/incidents/manage/", {
+            "action": "restore_selected", "confirm": "yes",
+            "incident_ids": [self.resolved.pk],
+        })
+        self.resolved.refresh_from_db()
+        self.assertFalse(self.resolved.is_archived)
+
+    def test_archived_ignored_for_duplicates(self):
+        self.active.is_archived = True
+        self.active.save(update_fields=["is_archived"])
+        self.assertIsNone(find_possible_duplicate(self.resolved))
