@@ -2,6 +2,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+(function () {
+    try {
+        var choice = localStorage.getItem("expopulse-theme");
+        var systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.theme = choice === "light" || choice === "dark" ? choice : (systemDark ? "dark" : "light");
+    } catch (error) {
+        document.documentElement.dataset.theme = "dark";
+    }
+})();
+</script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard{% endblock %} | ExpoPulse</title>
@@ -38,6 +50,16 @@
                {% if current == 'team_list' %}aria-current="page"{% endif %}>Teams</a>
         </nav>
 
+        <div class="theme-control">
+            <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Change color theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-menu" title="Change color theme">
+                <span class="theme-icon" aria-hidden="true">◐</span><span class="theme-toggle-label">Theme</span>
+            </button>
+            <div class="theme-menu" id="theme-menu" role="group" aria-label="Color theme" hidden>
+                <button type="button" data-theme-choice="system">System</button>
+                <button type="button" data-theme-choice="light">Light</button>
+                <button type="button" data-theme-choice="dark">Dark</button>
+            </div>
+        </div>
         <time class="clock" id="live-clock" aria-label="Local time">--:--:--</time>
     </div>
     </header>
@@ -55,7 +77,9 @@
         {% block content %}{% endblock %}
     </main>
 
+    <script src="{% static 'js/theme.js' %}" defer></script>
     <script src="{% static 'js/dashboard.js' %}" defer></script>
+    <script src="{% static 'js/incident_management.js' %}" defer></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

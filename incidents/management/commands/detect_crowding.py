@@ -20,6 +20,7 @@ class Command(BaseCommand):
             help="Local MP4 path or HTTP(S) HLS/M3U8 URL.",
         )
         parser.add_argument("--location", default="Gate 1")
+        parser.add_argument("--demo-priority", choices=["high"], default=None, help="Mark simulated CCTV incidents with an explicit demo priority.")
         parser.add_argument("--threshold", type=int, default=5)
         parser.add_argument("--frames", type=int, default=3)
         parser.add_argument("--sample-every", type=int, default=5)
@@ -229,6 +230,29 @@ class Command(BaseCommand):
                     )
                     continue
 
+                # A fresh episode or process restart must not generate a
+                # second incident while this CCTV location has an open alert.
+                existing = (
+                    Incident.objects.filter(
+                        title=f"CCTV Crowding Alert - {location.name}",
+                        source=source,
+                        location=location,
+                        incident_type=Incident.IncidentType.CROWDING,
+                        is_archived=False,
+                    )
+                    .exclude(status=Incident.Status.RESOLVED)
+                    .order_by("-created_at", "-pk")
+                    .first()
+                )
+                if existing is not None:
+                    alert_active = True
+                    last_alert_time = now
+                    self.stdout.write(
+                        f"Existing unresolved CCTV crowding incident "
+                        f"#{existing.pk}; duplicate suppressed."
+                    )
+                    continue
+
                 self.stdout.write(
                     self.style.WARNING(
                         f"CROWDING DETECTED: {people_count} people "
@@ -250,6 +274,9 @@ class Command(BaseCommand):
                     people_affected=people_count,
                 )
 
+                if options["demo_priority"]:
+                    from incidents.services.demo_priority import apply_demo_priority
+                    apply_demo_priority(incident, options["demo_priority"])
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"Incident #{incident.pk} created | "

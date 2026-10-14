@@ -155,6 +155,8 @@ class Incident(models.Model):
         related_name="possible_duplicates",
     )
 
+    is_archived = models.BooleanField(default=False, db_index=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

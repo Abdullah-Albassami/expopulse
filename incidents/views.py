@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Case, IntegerField, Q, Value, When
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,7 +21,7 @@ from .services.workflow import update_incident_status
 
 def ordered_incidents():
     return (
-        Incident.objects.select_related(
+        Incident.objects.filter(is_archived=False).select_related(
             "source", "location", "assigned_team", "possible_duplicate_of"
         )
         .annotate(
@@ -37,7 +38,7 @@ def ordered_incidents():
 
 
 def dashboard_counts():
-    active = Incident.objects.exclude(status=Incident.Status.RESOLVED)
+    active = Incident.objects.filter(is_archived=False).exclude(status=Incident.Status.RESOLVED)
     return {
         "critical_count": active.filter(
             priority_level=Incident.PriorityLevel.CRITICAL
@@ -47,7 +48,7 @@ def dashboard_counts():
         ).count(),
         "active_count": active.count(),
         "resolved_today_count": Incident.objects.filter(
-            status=Incident.Status.RESOLVED,
+            is_archived=False, status=Incident.Status.RESOLVED,
             updated_at__date=timezone.localdate(),
         ).count(),
         "available_team_count": Team.objects.filter(
@@ -99,7 +100,10 @@ def dashboard_data(request):
 
 
 def incident_list(request):
-    incidents = ordered_incidents()
+    archived = request.GET.get("archived") == "1"
+    incidents = (Incident.objects.filter(is_archived=True).select_related(
+        "source", "location", "assigned_team", "possible_duplicate_of"
+    ).order_by("-created_at") if archived else ordered_incidents())
     priority = request.GET.get("priority", "")
     status = request.GET.get("status", "")
     incident_type = request.GET.get("type", "")
@@ -125,6 +129,8 @@ def incident_list(request):
 
     return render(request, "incidents/incident_list.html", {
         "incidents": incidents,
+        "archived": archived,
+        "resolved_count": Incident.objects.filter(is_archived=False, status=Incident.Status.RESOLVED).count(),
         "incident_types": Incident.IncidentType.choices,
         "locations": Location.objects.all().order_by("name"),
     })
@@ -217,3 +223,63 @@ def incident_update_status(request, incident_id):
     else:
         messages.error(request, "No valid next status transition.")
     return redirect("incident_detail", incident_id=incident_id)
+
+@require_POST
+@transaction.atomic
+def manage_incidents(request):
+    """Bulk archive/restore and demo reset. All operations preserve incident rows."""
+    action = request.POST.get("action")
+    valid = {"archive_selected", "archive_resolved", "prepare_demo", "restore_selected"}
+    if action not in valid:
+        messages.error(request, "Invalid incident-management action.")
+        return redirect("incident_list")
+    if request.POST.get("confirm") != "yes":
+        messages.error(request, "Confirm the action before continuing.")
+        return redirect("incident_list")
+
+    if action in ("archive_selected", "restore_selected"):
+        ids = request.POST.getlist("incident_ids")
+        if not ids or len(ids) > 500 or any(not item.isdecimal() for item in ids):
+            messages.error(request, "Select valid incidents (maximum 500).")
+            return redirect("incident_list")
+        incidents = list(Incident.objects.select_for_update().filter(
+            pk__in=set(ids), is_archived=(action == "restore_selected")
+        ))
+    elif action == "archive_resolved":
+        incidents = list(Incident.objects.select_for_update().filter(
+            is_archived=False, status=Incident.Status.RESOLVED
+        ))
+    else:
+        incidents = list(Incident.objects.select_for_update().filter(is_archived=False))
+
+    if action == "archive_selected":
+        if any(i.status != Incident.Status.RESOLVED for i in incidents):
+            messages.error(request, "Only resolved incidents can be archived individually. Use Prepare Demo to close an active queue.")
+            return redirect("incident_list")
+    if action == "restore_selected":
+        Incident.objects.filter(pk__in=[i.pk for i in incidents]).update(is_archived=False)
+        messages.success(request, f"Restored {len(incidents)} archived incident(s).")
+        return redirect("incident_list")
+
+    if action == "prepare_demo":
+        # Demo reset closes prior alerts without deleting them or bypassing the live workflows.
+        now = timezone.now()
+        ids = [i.pk for i in incidents]
+        Incident.objects.filter(pk__in=ids).exclude(
+            status=Incident.Status.RESOLVED
+        ).update(status=Incident.Status.RESOLVED, updated_at=now)
+        team_ids = {i.assigned_team_id for i in incidents if i.assigned_team_id}
+        for team in Team.objects.select_for_update().filter(pk__in=team_ids):
+            if team.status != Team.Status.BUSY:
+                continue
+            remaining = Incident.objects.filter(
+                assigned_team=team, is_archived=False
+            ).exclude(pk__in=ids).exclude(status=Incident.Status.RESOLVED).exists()
+            if not remaining:
+                team.status = Team.Status.AVAILABLE
+                team.save(update_fields=["status"])
+
+    Incident.objects.filter(pk__in=[i.pk for i in incidents]).update(is_archived=True)
+    label = "Demo queue prepared" if action == "prepare_demo" else "Incidents archived"
+    messages.success(request, f"{label}: {len(incidents)} incident(s). History preserved.")
+    return redirect("incident_list")

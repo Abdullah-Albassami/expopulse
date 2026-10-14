@@ -63,6 +63,7 @@
     let current = {};
     let rows = [];
     let knownIds = null;
+    let newIncidentCount = 0;
     let busy = false;
     const count = (items, key, value) => items.filter(r => r.dataset[key] === value).length;
 
@@ -206,7 +207,16 @@
             if (knownIds !== null) {
                 const added = data.incidents.filter(item => !knownIds.has(item.id));
                 if (added.length) {
-                    toast.textContent = `${added.length} new incident${added.length === 1 ? "" : "s"} detected. See the incident table.`;
+                    newIncidentCount += added.length;
+                    const latest = added.reduce((a, b) => a.id > b.id ? a : b);
+                    toast.replaceChildren();
+                    toast.appendChild(document.createTextNode(
+                        `${newIncidentCount} new incident${newIncidentCount === 1 ? "" : "s"} since opening this dashboard. Latest: `
+                    ));
+                    const link = document.createElement("a");
+                    link.href = latest.url;
+                    link.textContent = `#${latest.id} — ${latest.title}`;
+                    toast.appendChild(link);
                     toast.hidden = false;
                 }
             }
