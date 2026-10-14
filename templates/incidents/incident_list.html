@@ -25,13 +25,17 @@
 
 <div class="lead lead-small">
     <div>
-        <h1>All incidents</h1>
+        <h1>{% if archived %}Archived incidents{% else %}All incidents{% endif %}</h1>
         <p>{{ incidents|length }} incident{{ incidents|length|pluralize }} shown.</p>
     </div>
-    <a class="report" href="{% url 'incident_create' %}">Manual incident report</a>
+    <div class="incident-toolbar">
+        <a class="btn" href="{% url 'incident_list' %}{% if not archived %}?archived=1{% endif %}">{% if archived %}Active incidents{% else %}View archive{% endif %}</a>
+        {% if not archived %}<a class="report" href="{% url 'incident_create' %}">Manual incident report</a>{% endif %}
+    </div>
 </div>
 
 <form class="filters" method="get" data-auto-submit>
+    {% if archived %}<input type="hidden" name="archived" value="1">{% endif %}
     <div class="field">
         <label for="f-priority">Priority</label>
         <select id="f-priority" name="priority">
@@ -78,15 +82,28 @@
     </div>
     <div class="actions">
         <button class="btn btn-solid" type="submit">Apply</button>
-        <a class="btn" href="{% url 'incident_list' %}">Clear</a>
+        <a class="btn" href="{% url 'incident_list' %}{% if archived %}?archived=1{% endif %}">Clear</a>
     </div>
 </form>
 
+<form method="post" action="{% url 'manage_incidents' %}" id="incident-management-form">
+{% csrf_token %}
+<input type="hidden" name="confirm" value="yes">
+<div class="management-actions">
+    {% if archived %}
+        <button type="submit" name="action" value="restore_selected" class="btn btn-solid" data-require-selection data-manage-confirm="Restore selected archived incidents?">Restore selected</button>
+    {% else %}
+        <button type="submit" name="action" value="archive_selected" class="btn" data-require-selection data-manage-confirm="Archive the selected resolved incidents?">Archive selected</button>
+        <button type="submit" name="action" value="archive_resolved" class="btn" data-manage-confirm="Archive all resolved incidents?">Archive all resolved ({{ resolved_count }})</button>
+        <button type="submit" name="action" value="prepare_demo" class="btn btn-solid" data-manage-confirm="Prepare demo? This will resolve and archive all current incidents and release their busy teams. History remains available. Ensure simulations are stopped first.">Prepare demo</button>
+    {% endif %}
+</div>
 {% if incidents %}
 <div class="table-wrap">
     <table class="list">
         <thead>
             <tr>
+                <th scope="col"><input type="checkbox" id="select-all-incidents" aria-label="Select all displayed incidents"></th>
                 <th scope="col">ID</th>
                 <th scope="col">Title</th>
                 <th scope="col">Priority</th>
@@ -101,6 +118,7 @@
         <tbody>
             {% for incident in incidents %}
             <tr>
+                <td><input type="checkbox" name="incident_ids" value="{{ incident.pk }}" aria-label="Select incident {{ incident.pk }}"></td>
                 <td class="num">#{{ incident.id }}</td>
                 <td class="title">
                     <a href="{% url 'incident_detail' incident.id %}">{{ incident.title }}</a>
@@ -121,4 +139,5 @@
 {% else %}
 <p class="empty">No incidents match these filters. <a href="{% url 'incident_list' %}">Clear the filters</a> to see everything.</p>
 {% endif %}
+</form>
 {% endblock %}
