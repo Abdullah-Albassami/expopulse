@@ -1,8 +1,17 @@
 """
-Equipment fault monitoring service (PROTOTYPE - simulated telemetry only).
+Equipment fault monitoring service (PROTOTYPE).
 
 Receives one validated telemetry reading for an elevator or escalator and
 decides whether an ExpoPulse Maintenance incident must be created.
+
+Readings come from one of two kinds of sender, identified by the optional
+``data_source`` field:
+
+* ``simulated`` (default) - the synthetic ``simulate_equipment`` demo.
+* ``paris_open_data_live`` / ``paris_open_data_replay`` - real status records
+  from the Paris Open Data lift/escalator feed, sent by
+  ``monitor_equipment_feed``. These carry a ``source_reference`` that points
+  back to the original record, and only the generic OUT_OF_SERVICE fault code.
 
 Central rule
 ------------
@@ -20,8 +29,9 @@ with "ELEV-A10".
 
 Limitations
 -----------
-* All readings, fault codes and severities are synthetic demonstration data.
-  They are not manufacturer telemetry or approved safety thresholds.
+* Simulated readings, their fault codes and the severity map are synthetic
+  demonstration data, not manufacturer telemetry or approved safety
+  thresholds. External records only state availability, never a cause.
 * Duplicate prevention is "check, then create" guarded by a process-level
   lock. That is safe for the local single-process demo (runserver). It is
   NOT an atomic uniqueness guarantee: several server processes could still
@@ -47,7 +57,7 @@ SOURCE_NAME = "Equipment Monitoring"
 TITLE_TEMPLATE = "Equipment Fault [{equipment_id}]"
 
 REQUIRED_FIELDS = ("equipment_id", "equipment_type", "location", "status", "timestamp")
-OPTIONAL_FIELDS = ("fault_code", "motor_temperature")
+OPTIONAL_FIELDS = ("fault_code", "motor_temperature", "data_source", "source_reference")
 ALLOWED_FIELDS = frozenset(REQUIRED_FIELDS + OPTIONAL_FIELDS)
 
 EQUIPMENT_TYPES = ("elevator", "escalator")
@@ -55,12 +65,22 @@ STATUSES = ("normal", "fault", "recovered")
 
 SAFE_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,64}")
 MAX_LOCATION_LENGTH = 100
+MAX_SOURCE_REFERENCE_LENGTH = 200
+
+SIMULATED = "simulated"
+DATA_SOURCE_LABELS = {
+    SIMULATED: "Simulated",
+    "paris_open_data_live": "Paris Open Data live status feed",
+    "paris_open_data_replay": "Replayed historical Paris Open Data record",
+}
 
 # Synthetic demo mapping. Unknown fault codes fall back to MEDIUM.
 FAULT_SEVERITY = {
     "EMERGENCY_STOP": Incident.Severity.CRITICAL,
     "DOOR_STUCK": Incident.Severity.HIGH,
     "MOTOR_FAULT": Incident.Severity.HIGH,
+    # External feeds only say a device is unavailable; the cause is unknown.
+    "OUT_OF_SERVICE": Incident.Severity.MEDIUM,
 }
 DEFAULT_FAULT_SEVERITY = Incident.Severity.MEDIUM
 
@@ -150,6 +170,27 @@ def validate_reading(payload):
         if not finite:
             raise EquipmentReadingError("motor_temperature must be a finite number.")
 
+    data_source = payload.get("data_source", SIMULATED)
+    if data_source is None:
+        data_source = SIMULATED
+    if not isinstance(data_source, str) or data_source not in DATA_SOURCE_LABELS:
+        raise EquipmentReadingError(
+            "data_source must be one of: " + ", ".join(DATA_SOURCE_LABELS) + "."
+        )
+
+    source_ref = payload.get("source_reference")
+    if source_ref is not None:
+        if (
+            not isinstance(source_ref, str)
+            or not source_ref.strip()
+            or len(source_ref) > MAX_SOURCE_REFERENCE_LENGTH
+            or not source_ref.isprintable()
+        ):
+            raise EquipmentReadingError(
+                "source_reference must be printable text (max 200 characters)."
+            )
+        source_ref = source_ref.strip()
+
     return {
         "equipment_id": equipment_id,
         "equipment_type": equipment_type,
@@ -158,6 +199,8 @@ def validate_reading(payload):
         "fault_code": fault_code,
         "timestamp": timestamp,
         "motor_temperature": motor_temperature,
+        "data_source": data_source,
+        "source_reference": source_ref,
     }
 
 
@@ -188,6 +231,25 @@ def find_active_incident(equipment_id):
 
 def severity_for_fault(fault_code):
     return FAULT_SEVERITY.get(fault_code, DEFAULT_FAULT_SEVERITY)
+
+
+def fault_description(reading, location):
+    """Incident text. Says honestly where the reading came from."""
+    equipment = f"{reading['equipment_type']} fault {reading['fault_code']}"
+    target = f"at {location.name} (equipment {reading['equipment_id']})."
+    if reading["data_source"] == SIMULATED:
+        return (
+            f"Simulated {equipment} {target} "
+            "Synthetic demonstration telemetry; operator verification required."
+        )
+    parts = [f"{DATA_SOURCE_LABELS[reading['data_source']]} reported {equipment} {target}"]
+    if reading["source_reference"]:
+        parts.append(f"Source record: {reading['source_reference']}.")
+    parts.append(
+        "The source reports availability only; the cause of the outage is not known. "
+        "Operator verification required."
+    )
+    return " ".join(parts)
 
 
 def _result(reading, action, incident=None):
@@ -247,11 +309,7 @@ def process_reading(payload):
 
         incident = create_incident(
             title=incident_title(equipment_id),
-            description=(
-                f"Simulated {reading['equipment_type']} fault {fault_code} "
-                f"at {location.name} (equipment {equipment_id}). "
-                "Synthetic demonstration telemetry; operator verification required."
-            ),
+            description=fault_description(reading, location),
             incident_type=Incident.IncidentType.MAINTENANCE,
             source=get_equipment_source(),
             location=location,

@@ -114,6 +114,16 @@ Run Django separately to view the live dashboard. Activate the virtual environme
 
 The HLS stream is generated from looping prerecorded footage, not a physical live CCTV camera.
 
+## Equipment Fault Monitoring
+
+Elevator/escalator faults reach ExpoPulse through `POST /api/equipment/readings/`.
+
+- **Real data:** `python manage.py monitor_equipment_feed --replay data/equipment/paris/paris_lifts_snapshot_2026-10-14.csv`
+  replays real Paris Open Data status records (or use `--live` for the public API).
+  Faults are detected with transparent rules. See [docs/Equipment_External_Data.md](docs/Equipment_External_Data.md).
+- **Fallback demo:** `python manage.py simulate_equipment --interval 2` sends a synthetic scenario.
+  See [docs/Equipment_Monitoring_Demo.md](docs/Equipment_Monitoring_Demo.md).
+
 ## Validation
 
 ```bash

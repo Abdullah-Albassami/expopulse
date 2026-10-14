@@ -1,0 +1,2 @@
+# Keep downloaded data snapshots byte-for-byte (their SHA-256 is documented)
+data/equipment/**/*.csv -text

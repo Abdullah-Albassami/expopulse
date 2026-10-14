@@ -6,6 +6,11 @@ Simulated **live IoT telemetry over HTTP JSON** for elevators and escalators.
 > severities are synthetic demonstration data. They are not manufacturer
 > telemetry, diagnosed failures, or approved safety thresholds.
 
+> **Real external data:** faults can now also be detected from public Paris
+> Open Data lift/escalator status records (live or replayed). See
+> [Equipment_External_Data.md](Equipment_External_Data.md). This simulator
+> remains the fallback demonstration mode.
+
 ## How it works
 
 ```
@@ -124,6 +129,8 @@ Headers: `Content-Type: application/json`, `X-Equipment-Token: <token>`
 | `fault_code` | Required when `status` is `fault`; otherwise `null` or omitted |
 | `timestamp` | Required. ISO 8601 with a timezone |
 | `motor_temperature` | Optional finite number. Never used to infer a fault |
+| `data_source` | Optional. `simulated` (default), `paris_open_data_live`, `paris_open_data_replay` |
+| `source_reference` | Optional printable text (max 200) pointing to the original external record |
 
 Any other field is rejected.
 
@@ -165,7 +172,8 @@ with source `Equipment Monitoring` and type Maintenance. Exact matching plus the
 restricted ID characters means `ELEV-A1` cannot collide with `ELEV-A10`.
 
 Synthetic severity map: `EMERGENCY_STOP` → critical; `DOOR_STUCK`, `MOTOR_FAULT`
-→ high; any other code → medium.
+→ high; `OUT_OF_SERVICE` (external feeds: unavailable, cause unknown) and any
+other code → medium.
 
 ## Security baseline
 

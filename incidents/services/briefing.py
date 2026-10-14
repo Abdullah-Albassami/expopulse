@@ -10,7 +10,9 @@ _FRIENDLY = {
     "DOOR_STUCK": "Door Stuck",
     "EMERGENCY_STOP": "Emergency Stop",
     "MOTOR_FAULT": "Motor Fault",
+    "OUT_OF_SERVICE": "Out of Service",
 }
+_EXTERNAL_FEED = "Paris Open Data"
 
 def incident_briefing(incident):
     channel = monitoring_channel(incident)
@@ -29,6 +31,13 @@ def incident_briefing(incident):
         equipment_type = detected.group(1).capitalize() if detected else "Equipment"
         fault_code = detected.group(2).upper() if detected else None
         fault_label = _FRIENDLY.get(fault_code, fault_code.replace("_", " ").title() if fault_code else "Fault Detected")
+        if _EXTERNAL_FEED in (incident.description or ""):
+            evidence = (
+                "The external status feed reports availability only; it does not confirm "
+                "the cause or any passenger impact."
+            )
+        else:
+            evidence = "The simulated telemetry has not confirmed passenger impact."
         briefing.update(
             title=f"{equipment_type} {fault_label} — {incident.location.name}",
             equipment_id=device_id,
@@ -37,7 +46,7 @@ def incident_briefing(incident):
             response=(
                 "Have maintenance verify the reported fault, check whether anyone needs assistance, "
                 "and assess safe operation. Escalate immediately if people are trapped or injured. "
-                "The simulated telemetry has not confirmed passenger impact."
+                + evidence
             ),
             show_people=False,
         )
