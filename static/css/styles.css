@@ -455,3 +455,9 @@ a.report { display: inline-block; text-decoration: none; }
 :root[data-theme="light"] .theme-menu button[aria-pressed="true"] { background: #e7effb; }
 :root[data-theme="light"] :focus-visible { outline-color: #165cb5; }
 @media (max-width: 520px) { .theme-toggle-label { display: none; } }
+
+/* Incident management controls, shared by original dark and light themes. */
+.incident-toolbar, .management-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.management-actions { margin: 8px 0 18px; }
+#incident-management-form input[type="checkbox"] { width: 17px; height: 17px; cursor: pointer; accent-color: var(--azure); }
+#incident-management-form td:first-child, #incident-management-form th:first-child { width: 34px; }
