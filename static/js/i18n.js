@@ -263,6 +263,23 @@
         "Only resolved incidents can be archived individually. Use Prepare Demo to close an active queue.":
             "يمكن أرشفة البلاغات المحلولة فقط بشكل فردي. استخدم «تجهيز العرض التجريبي» لإغلاق القائمة النشطة.",
 
+        // Live cameras page
+        "Live cameras": "الكاميرات المباشرة",
+        "All simulated CCTV streams on one screen, with the latest alert from each camera.":
+            "كل بثوث الكاميرات في شاشة واحدة، مع آخر تنبيه من كل كاميرا.",
+        "Crowd camera": "كاميرا الازدحام",
+        "Restricted-area camera": "كاميرا المنطقة المحظورة",
+        "Fall-detection camera": "كاميرا رصد السقوط",
+        "LIVE": "مباشر",
+        "Camera offline": "الكاميرا غير متصلة",
+        "Start the simulation to see this camera.": "شغّل المحاكاة لعرض هذه الكاميرا.",
+        "Full screen": "ملء الشاشة",
+        "Last alert": "آخر تنبيه",
+        "No alerts from this camera yet.": "لا توجد تنبيهات من هذه الكاميرا بعد.",
+        "Run": "شغّل",
+        "to start all cameras. The streams are recorded footage replayed as live video, not physical CCTV cameras.":
+            "لتشغيل كل الكاميرات. البث عبارة عن مقاطع مسجّلة تُعرض كبث مباشر، وليست كاميرات مراقبة فعلية.",
+
         // Footer
         "About ExpoPulse": "عن نبض إكسبو",
         "ExpoPulse is a smart operations center for Expo 2030. It brings incidents from CCTV detection, equipment monitoring and staff reports into one queue, ranks them by priority and dispatches the right response team.":
@@ -371,6 +388,8 @@
         [/^Restored (\d+) archived incident\(s\)\.$/, m => "تمت استعادة " + count(m[1], "incident") + " من الأرشيف."],
         [/^(Demo queue prepared|Incidents archived): (\d+) incident\(s\)\. History preserved\.$/,
             m => (m[1] === "Incidents archived" ? "تمت الأرشفة" : "تم تجهيز العرض التجريبي") + ": " + count(m[2], "incident") + ". السجل محفوظ."],
+        [/^(Crowd camera|Restricted-area camera|Fall-detection camera) live stream$/, m => "بث مباشر: " + sub(m[1])],
+        [/^Live cameras \| ExpoPulse$/, () => "الكاميرات المباشرة | نبض إكسبو"],
         [/^Color theme: (system|light|dark)\. Change color theme$/,
             m => "المظهر: " + { system: "حسب النظام", light: "فاتح", dark: "داكن" }[m[1]] + ". تغيير المظهر"]
     ];

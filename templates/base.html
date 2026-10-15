@@ -48,6 +48,8 @@
         <nav class="nav" aria-label="Main navigation">
             <a href="{% url 'dashboard' %}"
                {% if current == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+            <a href="{% url 'live_cameras' %}"
+               {% if current == 'live_cameras' %}aria-current="page"{% endif %}>Live cameras</a>
             <a href="{% url 'incident_list' %}"
                {% if current == 'incident_list' or current == 'incident_detail' %}aria-current="page"{% endif %}>Incidents</a>
             <a href="{% url 'incident_create' %}"

@@ -77,6 +77,17 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # The demo runs Django, three CCTV detectors and the equipment monitor
+        # as separate processes on one SQLite file. These options stop
+        # "database is locked" errors when two of them write at the same time:
+        # - IMMEDIATE takes the write lock when a transaction starts, so writers
+        #   queue up (and wait up to `timeout` seconds) instead of failing.
+        # - WAL lets readers (dashboard polling) and a writer work concurrently.
+        'OPTIONS': {
+            'transaction_mode': 'IMMEDIATE',
+            'timeout': 20,
+            'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+        },
     }
 }
 

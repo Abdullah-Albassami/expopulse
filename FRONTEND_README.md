@@ -177,3 +177,20 @@ FRONTEND_README.md
 - **Logo:** the pulse line is dark in the light theme so it stays visible.
 - **Arabic name:** in Arabic the brand reads **نبض إكسبو** ("Pulse of Expo",
   the meaning of ExpoPulse) in the logo, the browser tab and the footer.
+
+## Live cameras page (`/live/`)
+
+- **Live cameras** in the navigation shows every simulated CCTV stream on one
+  screen (crowd, restricted area, fall), each with a LIVE / Offline badge, a
+  full-screen button and the latest alert from that camera.
+- Start the streams with `run_simulation.sh all` / `run_simulation.ps1 all`
+  (or a single mode such as `crowd`). The page finds them in `streams/`.
+- Django serves the HLS files read-only at `/live/<camera>/<file>` from the
+  same origin as the dashboard, so no extra ports or CORS settings are needed.
+  Only `live.m3u8`, `liveN.ts`, `liveN.m4s` and `init.mp4` are served.
+- A camera counts as offline when its playlist has not been rewritten for
+  20 seconds (simulation stopped). The page retries every 5 seconds.
+- Playback uses the bundled `static/vendor/hls.light.min.js` (see
+  `static/vendor/README.md`). The page never creates or changes incidents.
+- Code: `incidents/views_live.py`, `templates/live/cameras.html`,
+  `static/js/live_cameras.js`; tests in `incidents/tests_live_cameras.py`.

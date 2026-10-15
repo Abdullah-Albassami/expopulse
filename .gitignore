@@ -3,6 +3,9 @@ venv/
 __pycache__/
 *.py[cod]
 db.sqlite3
+# SQLite write-ahead log files (WAL mode)
+db.sqlite3-wal
+db.sqlite3-shm
 .DS_Store
 .env
 # Computer-vision experiment
