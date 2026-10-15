@@ -148,8 +148,8 @@ class Command(BaseCommand):
                 "location": locations["Gate 4"],
                 "severity": Incident.Severity.HIGH,
                 "people_affected": 100,
-                "priority_score": 75,
-                "priority_level": Incident.PriorityLevel.HIGH,
+                "priority_score": 45,
+                "priority_level": Incident.PriorityLevel.MEDIUM,
                 "source": sources["Security Staff"],
             },
             {
@@ -170,7 +170,7 @@ class Command(BaseCommand):
                 "location": locations["Main Entrance"],
                 "severity": Incident.Severity.HIGH,
                 "people_affected": 50,
-                "priority_score": 70,
+                "priority_score": 65,
                 "priority_level": Incident.PriorityLevel.HIGH,
                 "source": sources["IT Monitoring"],
             },
@@ -189,10 +189,24 @@ class Command(BaseCommand):
         incidents = {}
         for data in incident_data:
             title = data.pop("title")
-            incident, _ = Incident.objects.update_or_create(
-                title=title,
-                defaults=data,
-            )
+            # Restore archived *sample* incidents at the start of a new demo,
+            # but never reset the workflow or assigned team of active samples.
+            incident, created = Incident.objects.get_or_create(title=title, defaults=data)
+            if not created:
+                updates = []
+                for field in ("priority_score", "priority_level"):
+                    if getattr(incident, field) != data[field]:
+                        setattr(incident, field, data[field])
+                        updates.append(field)
+                if incident.is_archived:
+                    incident.is_archived = False
+                    incident.status = Incident.Status.NEW
+                    # Prepare Demo already releases assigned teams before archiving.
+                    # Only clear the reference for an archived sample; never change team state.
+                    incident.assigned_team = None
+                    updates.extend(("is_archived", "status", "assigned_team"))
+                if updates:
+                    incident.save(update_fields=updates + ["updated_at"])
             incidents[title] = incident
 
         duplicate = incidents["Visitor Congestion at Gate 4"]
