@@ -152,6 +152,8 @@ else
   require_file footage/indoor_mall_cctv.mp4
   require_file footage/restricted_zone_normal.mp4
   require_file footage/fall-01-rgb.mp4
+  echo "[DEMO] Preparing balanced sample incidents (clearly fictional demo data)"
+  "$VENV_PY" manage.py seed_data
   start_stream crowd 8081 footage/indoor_mall_cctv.mp4 "$ROOT/streams/all_crowd" "$LOG_DIR"
   start_stream restricted 8082 footage/restricted_zone_normal.mp4 "$ROOT/streams/all_restricted" "$LOG_DIR"
   start_stream fall 8083 footage/fall-01-rgb.mp4 "$ROOT/streams/all_fall" "$LOG_DIR"
@@ -161,8 +163,8 @@ else
     OWNED_PIDS+=("$!")
     echo "[RUN] $name detector PID $! | log: streams/logs/$name.detector.log"
   done
-  echo "[START] Live Paris equipment-status polling (every 300 seconds)"
-  "$VENV_PY" manage.py monitor_equipment_feed --live --polls 0 --poll-interval 300 >"$LOG_DIR/equipment.detector.log" 2>&1 &
+  echo "[START] Live Paris equipment-status polling (equipment 13904_A; every 300 seconds)"
+  "$VENV_PY" manage.py monitor_equipment_feed --live --polls 0 --poll-interval 300 --equipment 13904_A >"$LOG_DIR/equipment.detector.log" 2>&1 &
   OWNED_PIDS+=("$!")
   echo "[RUN] equipment monitor PID $! | log: streams/logs/equipment.detector.log"
   echo "[OK] Three CCTV detectors plus live external equipment monitoring running."
