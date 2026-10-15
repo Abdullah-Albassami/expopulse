@@ -226,6 +226,9 @@ try {
         Assert-File "footage/indoor_mall_cctv.mp4"
         Assert-File "footage/restricted_zone_normal.mp4"
         Assert-File "footage/fall-01-rgb.mp4"
+        Write-Host "[DEMO] Refreshing sample incidents without resetting active assignments"
+        & $VenvPy manage.py seed_data
+        if ($LASTEXITCODE -ne 0) { Fail "Failed to seed demo incidents." }
         Start-Stream "crowd" 8081 "footage/indoor_mall_cctv.mp4" (Join-Path $Root "streams\all_crowd") $LogDir
         Start-Stream "restricted" 8082 "footage/restricted_zone_normal.mp4" (Join-Path $Root "streams\all_restricted") $LogDir
         Start-Stream "fall" 8083 "footage/fall-01-rgb.mp4" (Join-Path $Root "streams\all_fall") $LogDir
@@ -236,9 +239,9 @@ try {
             Write-Host "[RUN] $name detector PID $($detector.Id) | log: streams\logs\$name.detector.log (+ .err.log)"
         }
 
-        Write-Host "[START] Live Paris equipment-status polling (every 300 seconds)"
+        Write-Host "[START] Demo Paris equipment-status polling (13904_A; every 300 seconds)"
         $equipment = Start-Owned $VenvPy @(
-            "manage.py", "monitor_equipment_feed", "--live", "--polls", "0", "--poll-interval", "300"
+            "manage.py", "monitor_equipment_feed", "--live", "--polls", "0", "--poll-interval", "300", "--equipment", "13904_A"
         ) (Join-Path $LogDir "equipment.detector")
         Write-Host "[RUN] equipment monitor PID $($equipment.Id) | log: streams\logs\equipment.detector.log (+ .err.log)"
         Write-Host "[OK] Three CCTV detectors plus live external equipment monitoring running."
