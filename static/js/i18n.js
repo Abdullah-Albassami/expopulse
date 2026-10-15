@@ -289,7 +289,7 @@
         "Footer quick links": "روابط التذييل السريعة",
         "Project": "المشروع",
         "GitHub Repository": "مستودع GitHub",
-        "Developed by Team Next Wave": "من تطوير فريق نكست ويف",
+        "Developed by Vision Crew": "من تطوير فريق فيجن كرو",
         "Expo 2030 Operations Center Prototype": "نموذج أولي لمركز عمليات إكسبو 2030",
         "About ExpoPulse": "عن نبض إكسبو",
         "ExpoPulse is a smart operations center for Expo 2030. It brings incidents from CCTV detection, equipment monitoring and staff reports into one queue, ranks them by priority and dispatches the right response team.":
