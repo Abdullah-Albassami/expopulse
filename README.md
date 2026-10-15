@@ -1,55 +1,39 @@
 # ExpoPulse — Smart Operations Center
 
-ExpoPulse is a Django-based operations center developed for the **Expo 2030 Challenge 3.6**. It centralizes operational incidents, automatically calculates priorities, detects potential duplicates, assigns response teams, and tracks incidents through resolution.
+**Expo 2030 Challenge 3.6** · **Vision Crew** · **Django prototype**
 
-This experimental branch introduces **AI-powered CCTV monitoring**, using YOLO and OpenCV to detect crowding from recorded footage or simulated live HLS streams.
+ExpoPulse brings operational incidents from simulated CCTV monitoring, external equipment-status data, and manual staff reports into one operations dashboard. It prioritizes incoming incidents, flags possible duplicates, recommends suitable response teams, and tracks work from **New → Assigned → In Progress → Resolved**.
 
-> **Branch:** `experiment/cctv-crowding`  
-> **Official branch:** `main`  
-> **Repository:** [Abdullah-Albassami/expopulse](https://github.com/Abdullah-Albassami/expopulse)
+> **Prototype disclaimer:** CCTV feeds in this repository replay prerecorded video as live HLS streams; they are not connected to cameras at Expo. The equipment module uses publicly available **Paris Open Data** elevator/escalator status records—not Expo equipment or IoT telemetry. Detector alerts require operator verification. This project is a demonstration, not a deployed safety-critical system.
 
 ## Features
 
-- Unified operations dashboard with automatic updates approximately every 5 seconds.
-- Incident creation, prioritization, and possible-duplicate detection.
-- Automatic or operator-confirmed assignment of suitable response teams.
-- Incident lifecycle: **New → Assigned → In Progress → Resolved**.
-- CCTV crowd monitoring using YOLO11 and OpenCV.
-- MP4 and simulated live HLS/M3U8 video processing.
-- Basic HLS stream reconnection.
+| Area | Functionality |
+|---|---|
+| Operations dashboard | Priority and status summaries, incident queue, approximately 5-second updates |
+| Incidents | Manual reporting, automatic priority scoring, possible-duplicate detection, assignment and lifecycle management |
+| Live cameras | Three browser-viewable simulated HLS feeds at `/live/` with recent associated alerts |
+| Crowd monitoring | YOLO-based person counting and configurable threshold/confirmation |
+| Restricted areas | Person detection in a configured restricted polygon |
+| Fall monitoring | YOLO pose-based possible-fall detection with temporal confirmation |
+| Equipment | Public elevator/escalator operational-status feed (live polling or historical CSV replay), mapped to demonstration locations |
+| Teams | Matching incident types to available response teams and tracking their assignments |
+| Interface | English/Arabic toggle with RTL layout and dark/light appearance |
 
-## Technology Stack
+## Tech stack
 
-Python · Django 6.1.2 · SQLite · HTML/CSS/JavaScript · YOLO11 · OpenCV · FFmpeg
+Python · Django 6.1.2 · SQLite (local prototype) · HTML/CSS/JavaScript · Ultralytics YOLO · OpenCV · FFmpeg · HLS
 
-## Installation
+## Setup
 
-Clone the experimental branch:
+**Requirements:** Python compatible with the pinned packages in `requirements.txt`, FFmpeg available on your PATH, and Git. The CCTV models may be downloaded by Ultralytics on first use; network access can be required. Use this project for local demonstrations, not public production deployment.
 
 ```bash
-git clone -b experiment/cctv-crowding https://github.com/Abdullah-Albassami/expopulse.git
+git clone https://github.com/Abdullah-Albassami/expopulse.git
 cd expopulse
-```
-
-### macOS / Linux
-
-```bash
 python3 -m venv venv
 source venv/bin/activate
 python -m pip install -r requirements.txt
-```
-
-### Windows (PowerShell)
-
-```powershell
-py -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-```
-
-Initialize the database and start Django:
-
-```bash
 python manage.py migrate
 python manage.py seed_data
 python manage.py runserver
@@ -57,74 +41,42 @@ python manage.py runserver
 
 Open **http://127.0.0.1:8000/**.
 
-## CCTV Monitoring
+**Windows PowerShell:** replace environment setup with:
 
-The crowding detector is available at:
-
-`incidents/management/commands/detect_crowding.py`
-
-Place authorized footage in the local `footage/` directory.
-
-### Local MP4
-
-```bash
-python manage.py detect_crowding \
-  --video footage/indoor_crowd.mp4 \
-  --location "Transport Hub" \
-  --threshold 5 \
-  --frames 3
+```powershell
+py -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed_data
+python manage.py runserver
 ```
 
-### Simulated Live HLS Stream
+## Run the complete local demo
 
-Requires FFmpeg.
+Stop any separate Django development server before using `all` mode: the runner starts its own Django process and three CCTV HLS streams. Ensure FFmpeg is installed and the three example videos are present in `footage/`.
 
-**Terminal 1 — Generate the stream**
-
-```bash
-mkdir -p streams/hls
-
-ffmpeg -re -stream_loop -1 \
-  -i footage/indoor_crowd.mp4 \
-  -an -c:v libx264 -preset ultrafast \
-  -pix_fmt yuv420p \
-  -f hls -hls_time 2 \
-  -hls_list_size 5 \
-  -hls_flags delete_segments+omit_endlist \
-  streams/hls/live.m3u8
-```
-
-**Terminal 2 — Serve the stream**
+**macOS:**
 
 ```bash
-python3 -m http.server 8080 --directory streams/hls
+export EXPOPULSE_EQUIPMENT_API_TOKEN="local-demo-token"
+./run_simulation.sh all
 ```
 
-**Terminal 3 — Start the detector**
+**Windows PowerShell:**
 
-```bash
-python manage.py detect_crowding \
-  --video "http://127.0.0.1:8080/live.m3u8" \
-  --location "Transport Hub" \
-  --threshold 5 \
-  --frames 3
+```powershell
+$env:EXPOPULSE_EQUIPMENT_API_TOKEN = "local-demo-token"
+.\run_simulation.ps1 all
 ```
 
-Run Django separately to view the live dashboard. Activate the virtual environment in terminals running Django commands.
+Visit **Dashboard:** http://127.0.0.1:8000/ · **Live cameras:** http://127.0.0.1:8000/live/ · **Incidents:** http://127.0.0.1:8000/incidents/ · **Teams:** http://127.0.0.1:8000/teams/
 
-The HLS stream is generated from looping prerecorded footage, not a physical live CCTV camera.
+The runner uses local HLS ports **8081** (crowd), **8082** (restricted areas), and **8083** (fall); Django serves the browser camera page over port **8000**. Stream videos are unannotated footage: detection events are recorded in `streams/logs/` and appear as incidents. Press **Ctrl+C** to stop the runner.
 
-## Equipment Fault Monitoring
+The equipment source is an external public feed and may be unavailable or change independently of this prototype. The Mac `main` runner currently polls all eligible feed devices in `all` mode; demo alert volume can be high. A proposed reduction to one sample device is pending in [PR #12](../../pull/12).
 
-Elevator/escalator faults reach ExpoPulse through `POST /api/equipment/readings/`.
-
-- **Real data:** `python manage.py monitor_equipment_feed --replay data/equipment/paris/paris_lifts_snapshot_2026-10-14.csv`
-  replays real Paris Open Data status records (or use `--live` for the public API).
-  Faults are detected with transparent rules. See [docs/Equipment_External_Data.md](docs/Equipment_External_Data.md).
-- **Fallback demo:** `python manage.py simulate_equipment --interval 2` sends a synthetic scenario.
-  See [docs/Equipment_Monitoring_Demo.md](docs/Equipment_Monitoring_Demo.md).
-
-## Validation
+## Verify
 
 ```bash
 python manage.py check
@@ -132,26 +84,52 @@ python manage.py makemigrations --check --dry-run
 python manage.py test incidents
 ```
 
-**Latest baseline validation:** 15 tests passed, no system issues, and no pending migrations.
+The commands above are the **recommended checks**, not a claim that tests were executed for this submission. Run them before presenting.
 
-## Team Development
+## Project layout
 
-Additional CCTV incident detectors are being developed independently.
+```text
+config/                Django project configuration
+incidents/             Models, forms, services, views, management commands and tests
+templates/             Dashboard, incidents, response teams and live camera pages
+static/                Styles, scripts, translations and bundled browser HLS player
+footage/               Prerecorded demonstration videos
+configs/               Detection-area configuration
+data/equipment/paris/  Equipment-status snapshot for reproducible replay
+docs/                  Technical and demonstration notes
+run_simulation.sh       Combined macOS demo runner
+run_simulation.ps1      Combined Windows demo runner
+requirements.txt       Pinned Python dependencies
+```
 
-All development instructions, task requirements, integration rules, and pull-request procedures are documented in:
+## How monitoring works
 
-- [CCTV Team Integration](docs/CCTV_TEAM_INTEGRATION.md)
-- [Ammar — Fall Detection](docs/Ammar_CCTV_Fall_Detection_Task.md)
-- [Nasser — Obstruction Detection](docs/Nasser_CCTV_Obstruction_Detection_Task.md)
-- [Mohammed — Cleaning Detection](docs/Mohammed_CCTV_Cleaning_Detection_Task.md)
+1. **CCTV demonstration:** FFmpeg replays sample footage as HLS. OpenCV/YOLO processes frames and confirms possible crowding, restricted entry, or a fall.
+2. **Equipment monitoring:** publicly published Paris equipment-status records are checked for reported faults and sent through a token-protected local API.
+3. **Incident workflow:** ExpoPulse records alerts, prioritizes them, checks for possible duplicates, and supports response-team assignment and resolution.
+4. **Operator interface:** the dashboard and live-camera page show current incidents and monitoring streams.
 
-## Current Limitations
+### Other documentation
 
-- Crowd detection is based on YOLO person counts, not validated crowd density.
-- Small or overlapping people may be missed.
-- Repeated crowding episodes can generate multiple incident records.
-- HLS reconnection is basic and has not been fully automated-tested.
-- Additional incident detectors are under development.
-- CCTV-generated alerts require operator verification.
+- [External equipment data](docs/Equipment_External_Data.md)
+- [Equipment demo](docs/Equipment_Monitoring_Demo.md)
+- [Demo walkthrough](docs/demo_scenario.md)
+- [Frontend technical notes](FRONTEND_README.md)
 
-**Status:** Experimental MVP. Keep changes isolated from the official `main` branch until reviewed.
+Some technical documents also preserve earlier integration and team-development notes; this README is the entry point for the **current integrated prototype**.
+
+## Limitations and responsible use
+
+- Prerecorded HLS is **simulated live video**, not surveillance hardware integration.
+- YOLO predictions may be incorrect; crowd counts, fall alerts and restricted-area alerts need human confirmation.
+- The public equipment feed reports operational status, not the root cause of a fault or visitor impact.
+- Demo locations are illustrative; they are not geolocations of the Paris hardware.
+- SQLite, development settings and the local API token are intended for a **local prototype only**; do not expose the development server to the public internet.
+- Sample incidents may be mixed with live demonstration alerts. Check your local database before the presentation.
+- Proposed priority-balancing and Arabic terminology refinements are pending in [PR #12](../../pull/12) and [PR #13](../../pull/13), respectively.
+
+## Team
+
+**Vision Crew** — Expo 2030 Challenge 3.6.
+
+© 2026 ExpoPulse. Prototype for demonstration and evaluation.
