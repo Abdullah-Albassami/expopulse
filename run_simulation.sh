@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# ExpoPulse CCTV demonstration runner (macOS Bash 3.2+).
+# ExpoPulse combined monitoring runner (macOS Bash 3.2+).
 # Usage: ./run_simulation.sh {crowd|restricted|fall|all}
-# Equipment monitoring is intentionally excluded pending external-data integration.
+# 'all' runs CCTV detectors and the real Paris Open Data equipment status feed.
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,8 +62,17 @@ require_file() {
 }
 
 # Reuse a running Django instance; never terminate processes we did not start.
+if [[ "$MODE" == all && -z "${EXPOPULSE_EQUIPMENT_API_TOKEN:-}" ]]; then
+  echo "[ERROR] Export EXPOPULSE_EQUIPMENT_API_TOKEN before running all." >&2
+  exit 1
+fi
+
 if port_busy 8000; then
   if curl -fsS --max-time 2 http://127.0.0.1:8000/ >/dev/null 2>&1; then
+    if [[ "$MODE" == all ]]; then
+      echo "[ERROR] Port 8000 occupied. Stop the existing server; all mode must start Django with the matching equipment API token." >&2
+      exit 1
+    fi
     echo "[INFO] Reusing HTTP service on port 8000; confirm it is ExpoPulse."
   else
     echo "[ERROR] Port 8000 is occupied by an unresponsive HTTP service." >&2
@@ -151,8 +160,12 @@ else
     OWNED_PIDS+=("$!")
     echo "[RUN] $name detector PID $! | log: streams/logs/$name.detector.log"
   done
-  echo "[OK] All three CCTV detectors running. Equipment is excluded."
-  echo "Follow logs: tail -f streams/logs/{crowd,restricted,fall}.detector.log"
+  echo "[START] Live Paris equipment-status polling (every 300 seconds)"
+  "$VENV_PY" manage.py monitor_equipment_feed --live --polls 0 --poll-interval 300 >"$LOG_DIR/equipment.detector.log" 2>&1 &
+  OWNED_PIDS+=("$!")
+  echo "[RUN] equipment monitor PID $! | log: streams/logs/equipment.detector.log"
+  echo "[OK] Three CCTV detectors plus live external equipment monitoring running."
+  echo "Follow logs: tail -f streams/logs/{crowd,restricted,fall,equipment}.detector.log"
   echo "Press Ctrl+C to stop the processes started by this runner."
   # Bash 3.2 lacks wait -n. Check child liveness periodically instead.
   while true; do
