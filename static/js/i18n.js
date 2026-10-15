@@ -39,15 +39,15 @@
         "ExpoPulse, go to dashboard": "نبض إكسبو، الانتقال إلى لوحة التحكم",
 
         // Dashboard
-        "Operations dashboard": "لوحة العمليات",
+        "Operations dashboard": "لوحة تحكم مركز العمليات",
         "Live incident picture · prioritized by severity and impact. Select a priority or status to focus the queue.":
             "صورة حيّة للبلاغات مرتّبة حسب الخطورة والأثر. اختر أولوية أو حالة لتصفية القائمة.",
         "Connecting live updates…": "جارٍ الاتصال بالتحديثات المباشرة…",
         "Live update unavailable · retrying…": "التحديث المباشر غير متاح · جارٍ إعادة المحاولة…",
         "Manual incident report": "تسجيل بلاغ يدوي",
-        "High priority": "أولوية عالية",
+        "High priority": "أولوية مرتفعة",
         "Active now": "النشطة الآن",
-        "Resolved today": "المحلولة اليوم",
+        "Resolved today": "تمت معالجتها اليوم",
         "Teams free": "الفرق المتاحة",
         "Show all incidents": "عرض كل البلاغات",
         "Open incidents by priority": "البلاغات المفتوحة حسب الأولوية",
@@ -76,16 +76,16 @@
 
         // Priority / severity
         "Critical": "حرج",
-        "High": "عالٍ",
+        "High": "مرتفع",
         "Medium": "متوسط",
         "Low": "منخفض",
 
         // Incident status
         "New": "جديد",
-        "Assigned": "مُسنَد",
-        "In progress": "قيد التنفيذ",
-        "In Progress": "قيد التنفيذ",
-        "Resolved": "محلول",
+        "Assigned": "تم الإسناد",
+        "In progress": "قيد المعالجة",
+        "In Progress": "قيد المعالجة",
+        "Resolved": "تمت المعالجة",
 
         // Incident types
         "Crowding": "ازدحام",
@@ -115,7 +115,7 @@
         // Incident sources (demo data)
         "Security Staff": "موظفو الأمن",
         "Maintenance System": "نظام الصيانة",
-        "IT Monitoring": "مراقبة تقنية المعلومات",
+        "IT Monitoring": "أنظمة تقنية المعلومات",
         "Cleaning Team": "فريق النظافة",
         "Access Control System": "نظام التحكم بالدخول",
         "Sensor Network": "شبكة الحساسات",
@@ -161,10 +161,10 @@
         "Archive selected": "أرشفة المحدد",
         "Prepare demo": "تجهيز العرض التجريبي",
         "Restore selected archived incidents?": "استعادة البلاغات المؤرشفة المحددة؟",
-        "Archive the selected resolved incidents?": "أرشفة البلاغات المحلولة المحددة؟",
-        "Archive all resolved incidents?": "أرشفة كل البلاغات المحلولة؟",
+        "Archive the selected resolved incidents?": "أرشفة البلاغات المحددة التي تمت معالجتها؟",
+        "Archive all resolved incidents?": "أرشفة جميع البلاغات التي تمت معالجتها؟",
         "Prepare demo? This will resolve and archive all current incidents and release their busy teams. History remains available. Ensure simulations are stopped first.":
-            "تجهيز العرض التجريبي؟ سيتم حل كل البلاغات الحالية وأرشفتها وتحرير الفرق المشغولة. يبقى السجل متاحاً. تأكد من إيقاف المحاكاة أولاً.",
+            "تجهيز العرض التجريبي؟ ستتم معالجة جميع البلاغات الحالية وأرشفتها وإتاحة الفرق المشغولة مجددًا. سيبقى السجل متاحًا. تأكد من إيقاف المحاكاة أولًا.",
         "Select all displayed incidents": "تحديد كل البلاغات المعروضة",
         "Select at least one incident.": "حدّد بلاغاً واحداً على الأقل.",
         "No incidents match these filters.": "لا توجد بلاغات تطابق هذه الفلاتر.",
@@ -195,9 +195,9 @@
         "Confirm team assignment": "تأكيد إسناد الفريق",
         "No suitable team is currently available.": "لا يوجد فريق مناسب متاح حالياً.",
         "Start incident response": "بدء الاستجابة للبلاغ",
-        "Mark as resolved": "تحديد كمحلول",
-        "Resolve this incident and release its team?": "حل هذا البلاغ وتحرير فريقه؟",
-        "Incident resolved.": "تم حل البلاغ.",
+        "Mark as resolved": "وضع علامة تمت المعالجة",
+        "Resolve this incident and release its team?": "تأكيد معالجة هذا البلاغ وإتاحة فريقه مجددًا؟",
+        "Incident resolved.": "تمت معالجة البلاغ.",
         "Elevator": "مصعد",
         "Escalator": "سلم كهربائي",
         "Equipment": "معدات",
@@ -255,13 +255,13 @@
         "Only new incidents can receive an initial assignment.": "يمكن إسناد فريق للبلاغات الجديدة فقط.",
         "Assign a team first.": "أسنِد فريقاً أولاً.",
         "Incident is now in progress.": "البلاغ الآن قيد التنفيذ.",
-        "Incident resolved and team released.": "تم حل البلاغ وتحرير الفريق.",
+        "Incident resolved and team released.": "تمت معالجة البلاغ وإتاحة الفريق مجددًا.",
         "No valid next status transition.": "لا توجد مرحلة تالية صالحة.",
         "Invalid incident-management action.": "إجراء غير صالح.",
         "Confirm the action before continuing.": "أكّد الإجراء قبل المتابعة.",
         "Select valid incidents (maximum 500).": "حدّد بلاغات صالحة (500 كحد أقصى).",
         "Only resolved incidents can be archived individually. Use Prepare Demo to close an active queue.":
-            "يمكن أرشفة البلاغات المحلولة فقط بشكل فردي. استخدم «تجهيز العرض التجريبي» لإغلاق القائمة النشطة.",
+            "يمكن أرشفة البلاغات التي تمت معالجتها فقط بشكل فردي. استخدم «تجهيز العرض التجريبي» لإغلاق قائمة البلاغات النشطة.",
 
         // Live cameras page
         "Live cameras": "الكاميرات المباشرة",
@@ -284,7 +284,7 @@
         "Smart Operations Center": "مركز العمليات الذكي",
         "Unified incident monitoring, intelligent prioritization, and coordinated response for Expo 2030.": "مراقبة موحّدة للحوادث وتحديد ذكي للأولويات وتنسيق الاستجابة لإكسبو 2030.",
         "Quick Links": "روابط سريعة",
-        "Operations Dashboard": "لوحة مركز العمليات",
+        "Operations Dashboard": "لوحة تحكم مركز العمليات",
         "Response Teams": "فرق الاستجابة",
         "Footer quick links": "روابط التذييل السريعة",
         "Project": "المشروع",
