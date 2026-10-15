@@ -4,7 +4,7 @@ from incidents.models import Incident, IncidentSource, Location, Team
 
 
 class Command(BaseCommand):
-    help = "Create repeatable ExpoPulse demo data."
+    help = "Create or reset clearly fictional ExpoPulse demonstration incidents."
 
     def handle(self, *args, **options):
         locations = self._create_locations()
@@ -148,8 +148,8 @@ class Command(BaseCommand):
                 "location": locations["Gate 4"],
                 "severity": Incident.Severity.HIGH,
                 "people_affected": 100,
-                "priority_score": 75,
-                "priority_level": Incident.PriorityLevel.HIGH,
+                "priority_score": 45,
+                "priority_level": Incident.PriorityLevel.MEDIUM,
                 "source": sources["Security Staff"],
             },
             {
@@ -170,7 +170,7 @@ class Command(BaseCommand):
                 "location": locations["Main Entrance"],
                 "severity": Incident.Severity.HIGH,
                 "people_affected": 50,
-                "priority_score": 70,
+                "priority_score": 65,
                 "priority_level": Incident.PriorityLevel.HIGH,
                 "source": sources["IT Monitoring"],
             },
@@ -191,7 +191,7 @@ class Command(BaseCommand):
             title = data.pop("title")
             incident, _ = Incident.objects.update_or_create(
                 title=title,
-                defaults=data,
+                defaults={**data, "is_archived": False, "status": Incident.Status.NEW, "assigned_team": None},
             )
             incidents[title] = incident
 
