@@ -1,3 +1,5 @@
+> **Historical integration handoff.** All required Django views and routes are integrated. Do not use these instructions as a current installation checklist. See [README.md](README.md).
+
 # ExpoPulse frontend: how to connect it
 
 Copy `templates/` and `static/` into the Django project. The templates were tested
