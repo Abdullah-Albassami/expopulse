@@ -136,6 +136,10 @@ Some technical documents also preserve earlier integration and team-development 
 - Sample incidents may be mixed with live demonstration alerts. Check your local database before the presentation.
 - Proposed priority-balancing and Arabic terminology refinements are pending in [PR #12](https://github.com/Abdullah-Albassami/expopulse/pull/12) and [PR #13](https://github.com/Abdullah-Albassami/expopulse/pull/13), respectively.
 
+## License and third-party notices
+
+Original ExpoPulse source code is available under [GNU AGPL-3.0](LICENSE), subject to contributor ownership and the separate rights of third-party materials. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for Ultralytics YOLO, the hls.js player, Paris Open Data, and prerecorded footage. **Review video redistribution permissions before making the repository public.**
+
 ## Team
 
 **Vision Crew** — Expo 2030 Challenge 3.6.
