@@ -412,7 +412,9 @@ a.report { display: inline-block; text-decoration: none; }
 :root[data-theme="light"] .topbar { background: rgba(255,255,255,.91); }
 :root[data-theme="light"] .nav a:hover { background: rgba(32,95,186,.09); }
 :root[data-theme="light"] .nav a[aria-current] { color: #12396c; background: #dceafd; }
-:root[data-theme="light"] .brand svg path { stroke: #ffffff; }
+:root[data-theme="light"] .brand svg { filter: drop-shadow(0 2px 6px rgba(29, 78, 216, 0.28)); }
+:root[data-theme="light"] .brand svg .logo-pulse { stroke: #0f2f5c; }
+:root[data-theme="light"] .brand svg .logo-dot { fill: #1d4ed8; }
 :root[data-theme="light"] .report, :root[data-theme="light"] .btn-solid { background: #164c95; color: #fff; border-color: #164c95; box-shadow: none; }
 :root[data-theme="light"] .btn-solid:hover, :root[data-theme="light"] .report:hover { background: #0d3e81; color: #fff; }
 :root[data-theme="light"] .card,
@@ -461,3 +463,72 @@ a.report { display: inline-block; text-decoration: none; }
 .management-actions { margin: 8px 0 18px; }
 #incident-management-form input[type="checkbox"] { width: 17px; height: 17px; cursor: pointer; accent-color: var(--azure); }
 #incident-management-form td:first-child, #incident-management-form th:first-child { width: 34px; }
+
+
+/* ==========================================================
+   Language switch (Arabic / English), footer, right-to-left.
+   Additive: the English layout above is unchanged.
+   ========================================================== */
+.lang-toggle {
+    flex: none; display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px;
+    background: transparent; color: var(--paper); font-weight: 600;
+    font-family: "IBM Plex Sans Arabic", var(--font);
+}
+.lang-toggle:hover { border-color: var(--mist); }
+
+.site-footer { border-top: 1px solid var(--line); margin-top: 24px; background: rgba(4, 10, 26, 0.45); }
+:root[data-theme="light"] .site-footer { background: rgba(255, 255, 255, 0.7); }
+.footer-inner {
+    max-width: 1320px; margin: 0 auto; padding: 34px 28px 18px;
+    display: grid; grid-template-columns: minmax(240px, 1fr) 2fr; gap: 36px; align-items: start;
+}
+.footer-title { font-size: 1.05rem; margin: 0 0 12px; }
+.footer-about p { margin: 0 0 10px; color: var(--mist); max-width: 46ch; }
+.footer-tag { font-weight: 800; color: var(--paper) !important; }
+.member-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.member {
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+    padding: 16px 10px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255, 255, 255, 0.03);
+}
+:root[data-theme="light"] .member { background: #fff; }
+.member img { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 3px var(--line); margin-bottom: 4px; }
+.member-name { font-weight: 800; line-height: 1.25; }
+.member-role { font-size: 0.88rem; color: var(--mist); font-weight: 600; }
+.footer-bottom { max-width: 1320px; margin: 0 auto; padding: 14px 28px 26px; color: var(--mist); font-size: 0.88rem; border-top: 1px solid var(--line); }
+@media (max-width: 900px) {
+    .footer-inner { grid-template-columns: 1fr; padding-left: 16px; padding-right: 16px; }
+    .member-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .footer-bottom { padding-left: 16px; padding-right: 16px; }
+}
+
+/* Arabic text: an Arabic typeface, and no negative letter-spacing (it breaks joined letters). */
+:root[lang="ar"] { --font: "IBM Plex Sans Arabic", "Bricolage Grotesque", "Segoe UI", Tahoma, sans-serif; }
+:root[lang="ar"] body, :root[lang="ar"] body * { letter-spacing: 0 !important; }
+:root[lang="ar"] .lead h1, :root[lang="ar"] .detail-hero h1 { line-height: 1.25; }
+/* Brand name: "ExpoPulse" in English, "نبض إكسبو" (Pulse of Expo) in Arabic. */
+.brand-ar { display: none; }
+:root[lang="ar"] .brand-en { display: none; }
+:root[lang="ar"] .brand-ar { display: inline; font-family: "IBM Plex Sans Arabic", var(--font); }
+:root[lang="ar"] .brand-ar b { font-weight: 700; }
+
+/* Right-to-left mirroring of the few left/right rules above. */
+[dir="rtl"] .list th { text-align: right; padding: 10px 0 10px 14px; }
+[dir="rtl"] .list td { padding: 15px 0 15px 14px; }
+[dir="rtl"] .legend-btn { text-align: right; }
+[dir="rtl"] .message { border-left: 1px solid var(--line); border-right: 5px solid var(--heat-medium); }
+[dir="rtl"] .message-success { border-right-color: var(--panel); }
+[dir="rtl"] .message-error { border-right-color: var(--heat-critical); }
+[dir="rtl"] .card.detail-hero { border-left: 1px solid var(--line); border-right: 6px solid var(--heat, var(--azure)); }
+[dir="rtl"] .detail-hero::after { right: auto; left: -120px; }
+[dir="rtl"] .team[data-status] { border-left: 1px solid var(--line); }
+[dir="rtl"] .team[data-status="available"] { border-right: 5px solid #9fe0b0; }
+[dir="rtl"] .team[data-status="busy"] { border-right: 5px solid var(--heat-high); }
+[dir="rtl"] .team[data-status="offline"] { border-right: 5px dashed var(--mist); }
+:root[data-theme="light"][dir="rtl"] .team[data-status="available"] { border-right-color: #1f7650; }
+[dir="rtl"] .theme-menu { right: auto; left: 0; }
+[dir="rtl"] .theme-menu button { text-align: right; }
+[dir="rtl"] .theme-menu button[aria-pressed="true"]::after { float: left; }
+[dir="rtl"] .skip-link { left: auto; right: -9999px; }
+[dir="rtl"] .skip-link:focus { right: 16px; }
+@media (max-width: 900px) { [dir="rtl"] .nav { margin-left: 0; margin-right: -14px; } }

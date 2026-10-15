@@ -155,3 +155,25 @@ static/
 INTEGRATION.md
 FRONTEND_README.md
 ```
+
+## Arabic / English, team footer and light-theme logo
+
+- **Language switch:** the button next to *Theme* ("العربية") switches the
+  interface to Arabic and right-to-left; it shows *English* to switch back.
+  The choice is remembered per browser (`localStorage` key `expopulse-lang`).
+- **How it works:** `static/js/i18n.js` translates the text on screen in the
+  browser. Django still renders English, so the backend, forms, filters, URLs
+  and tests are unchanged. Text added later by the live dashboard is
+  translated as it appears.
+- **What is translated:** all interface text, labels and choices, monitoring
+  channels, server messages, and the demo names from `seed_data` (locations,
+  teams, demo incidents). Free text typed by operators or written by the
+  detectors (incident descriptions) stays as written.
+- **Adding a translation:** add the exact English text and its Arabic to the
+  `TEXT` table at the top of `static/js/i18n.js`. Sentences that contain
+  numbers or names go in `PATTERNS`.
+- **Footer:** "About ExpoPulse" and the four team members with photo and role
+  (`templates/base.html`, photos in `static/img/team/`).
+- **Logo:** the pulse line is dark in the light theme so it stays visible.
+- **Arabic name:** in Arabic the brand reads **نبض إكسبو** ("Pulse of Expo",
+  the meaning of ExpoPulse) in the logo, the browser tab and the footer.

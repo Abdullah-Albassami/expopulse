@@ -11,6 +11,12 @@
     } catch (error) {
         document.documentElement.dataset.theme = "dark";
     }
+    try {
+        if (localStorage.getItem("expopulse-lang") === "ar") {
+            document.documentElement.lang = "ar";
+            document.documentElement.dir = "rtl";
+        }
+    } catch (error) { /* English by default */ }
 })();
 </script>
 
@@ -18,7 +24,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard{% endblock %} | ExpoPulse</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
     {% block extra_head %}{% endblock %}
 </head>
@@ -33,10 +39,10 @@
                 <defs><linearGradient id="logo-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#1d4ed8"/></linearGradient></defs>
                 <circle cx="24" cy="24" r="19" fill="none" stroke="url(#logo-ring)" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="96 24" transform="rotate(20 24 24)"/>
                 <circle cx="24" cy="24" r="11" fill="none" stroke="#60a5fa" stroke-opacity=".35" stroke-width="2"/>
-                <path d="M5 24h11l3.5-9 6 18 3.5-9H45" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="45" cy="24" r="3" fill="#7dd3fc"/>
+                <path class="logo-pulse" d="M5 24h11l3.5-9 6 18 3.5-9H45" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle class="logo-dot" cx="45" cy="24" r="3" fill="#7dd3fc"/>
             </svg>
-            <span class="brand-name">Expo<b>Pulse</b></span>
+            <span class="brand-name" data-no-i18n><span class="brand-en" lang="en">Expo<b>Pulse</b></span><span class="brand-ar" lang="ar"><b>نبض</b> إكسبو</span></span>
         </a>
 
         <nav class="nav" aria-label="Main navigation">
@@ -49,6 +55,10 @@
             <a href="{% url 'team_list' %}"
                {% if current == 'team_list' %}aria-current="page"{% endif %}>Teams</a>
         </nav>
+
+        <button type="button" id="lang-toggle" class="lang-toggle" lang="ar" aria-label="التبديل إلى العربية" title="التبديل إلى العربية" data-no-i18n>
+            <span class="lang-label">العربية</span>
+        </button>
 
         <div class="theme-control">
             <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Change color theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-menu" title="Change color theme">
@@ -77,6 +87,43 @@
         {% block content %}{% endblock %}
     </main>
 
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-about">
+                <h2 class="footer-title">About ExpoPulse</h2>
+                <p>ExpoPulse is a smart operations center for Expo 2030. It brings incidents from CCTV detection, equipment monitoring and staff reports into one queue, ranks them by priority and dispatches the right response team.</p>
+                <p class="footer-tag">Expo 2030 Challenge 3.6</p>
+            </div>
+            <section class="footer-team" aria-labelledby="footer-team-title">
+                <h2 class="footer-title" id="footer-team-title">Team members</h2>
+                <ul class="member-grid">
+                    <li class="member">
+                        <img src="{% static 'img/team/abdullah.jpg' %}" alt="" width="76" height="76" loading="lazy">
+                        <span class="member-name">Abdullah Saeed Albassami</span>
+                        <span class="member-role">Team Leader · Backend</span>
+                    </li>
+                    <li class="member">
+                        <img src="{% static 'img/team/ammar.jpg' %}" alt="" width="76" height="76" loading="lazy">
+                        <span class="member-name">Ammar Mohammed Abdulkarim</span>
+                        <span class="member-role">Backend</span>
+                    </li>
+                    <li class="member">
+                        <img src="{% static 'img/team/nasser.jpg' %}" alt="" width="76" height="76" loading="lazy">
+                        <span class="member-name">Nasser Yaseen Abdu Qasem</span>
+                        <span class="member-role">Frontend</span>
+                    </li>
+                    <li class="member">
+                        <img src="{% static 'img/team/mohammed.jpg' %}" alt="" width="76" height="76" loading="lazy">
+                        <span class="member-name">Mohammed Yousef Alfulaij</span>
+                        <span class="member-role">Testing</span>
+                    </li>
+                </ul>
+            </section>
+        </div>
+        <p class="footer-bottom"><span>© 2026 ExpoPulse</span> · <span>Built by the ExpoPulse team.</span></p>
+    </footer>
+
+    <script src="{% static 'js/i18n.js' %}"></script>
     <script src="{% static 'js/theme.js' %}" defer></script>
     <script src="{% static 'js/dashboard.js' %}" defer></script>
     <script src="{% static 'js/incident_management.js' %}" defer></script>
