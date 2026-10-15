@@ -532,3 +532,41 @@ a.report { display: inline-block; text-decoration: none; }
 [dir="rtl"] .skip-link { left: auto; right: -9999px; }
 [dir="rtl"] .skip-link:focus { right: 16px; }
 @media (max-width: 900px) { [dir="rtl"] .nav { margin-left: 0; margin-right: -14px; } }
+
+/* ==========================================================
+   Live cameras page
+   ========================================================== */
+.cam-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1100px) { .cam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .cam-grid { grid-template-columns: 1fr; } }
+.cam { display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 14px; }
+.cam-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; min-height: 62px; }
+.cam-head h2 { margin: 0; font-size: 1.1rem; }
+.cam-meta { margin: 3px 0 0; color: var(--mist); font-size: .88rem; }
+.cam-badge { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; font-size: .8rem; font-weight: 800; letter-spacing: .04em; border: 1px solid var(--line); color: var(--mist); }
+.cam-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.cam-badge[data-state="live"] { color: #fff; background: #d92b3a; border-color: #d92b3a; }
+.cam-badge[data-state="live"] .cam-dot { animation: cam-pulse 1.4s ease-in-out infinite; }
+@keyframes cam-pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .cam-badge[data-state="live"] .cam-dot { animation: none; } }
+.cam-screen { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #02050d; border: 1px solid var(--line); }
+.cam-video { width: 100%; height: 100%; object-fit: contain; display: block; background: #02050d; }
+.cam-offline { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 4px; padding: 16px; color: #9fb3d6; background: repeating-linear-gradient(135deg, #040a18 0 14px, #071026 14px 28px); }
+.cam-offline[hidden] { display: none; }
+.cam-offline p { margin: 0; font-size: .9rem; }
+.cam-offline .cam-offline-title { font-weight: 800; color: #f2f6ff; font-size: 1rem; }
+.cam-full { position: absolute; bottom: 8px; right: 8px; width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(3,8,20,.65); color: #fff; font-size: 1.05rem; line-height: 1; }
+.cam-full:hover { background: rgba(3,8,20,.9); }
+[dir="rtl"] .cam-full { right: auto; left: 8px; }
+.cam-screen:fullscreen { border-radius: 0; border: 0; }
+.cam-alert { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); min-height: 74px; }
+.cam-alert-label { color: var(--mist); font-size: .82rem; font-weight: 600; }
+.cam-alert-body { display: grid; gap: 6px; }
+.cam-alert-body a { font-weight: 700; text-decoration: none; }
+.cam-alert-body a:hover { text-decoration: underline; }
+.cam-alert-tags { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: .85rem; }
+.cam-alert-tags .pill { font-size: .78rem; padding: 2px 10px; }
+.cam-alert-tags time { color: var(--mist); }
+.cam-alert-none { color: var(--mist); font-size: .9rem; }
+.cam-note { margin-top: 18px; }
+:root[data-theme="light"] .cam-badge[data-state="live"] { background: #ba2734; border-color: #ba2734; }

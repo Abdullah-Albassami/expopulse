@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Live cameras{% endblock %}
+
+{% block content %}
+<div class="lead lead-small">
+    <div>
+        <h1>Live cameras</h1>
+        <p>All simulated CCTV streams on one screen, with the latest alert from each camera.</p>
+    </div>
+</div>
+
+<div class="cam-grid" id="cam-grid" data-status-url="{% url 'live_status' %}">
+    {% for cam in cameras %}
+    <section class="card cam" data-camera="{{ cam.id }}" data-playlist="{{ cam.playlist }}" data-live="{{ cam.live|yesno:'1,0' }}" data-alert-key="{% if cam.alert %}{{ cam.alert.id }}:{{ cam.alert.status }}{% endif %}" aria-labelledby="cam-title-{{ cam.id }}">
+        <header class="cam-head">
+            <div>
+                <h2 id="cam-title-{{ cam.id }}">{{ cam.name }}</h2>
+                <p class="cam-meta"><span>{{ cam.location }}</span> · <span>{{ cam.detector }}</span></p>
+            </div>
+            <span class="cam-badge" data-state="{% if cam.live %}live{% else %}offline{% endif %}"><span class="cam-dot" aria-hidden="true"></span><span class="cam-badge-text">{% if cam.live %}LIVE{% else %}Offline{% endif %}</span></span>
+        </header>
+
+        <div class="cam-screen">
+            <video class="cam-video" muted autoplay playsinline aria-label="{{ cam.name }} live stream"></video>
+            <div class="cam-offline"{% if cam.live %} hidden{% endif %}>
+                <p class="cam-offline-title">Camera offline</p>
+                <p>Start the simulation to see this camera.</p>
+            </div>
+            <button type="button" class="cam-full" aria-label="Full screen" title="Full screen">⛶</button>
+        </div>
+
+        <div class="cam-alert">
+            <span class="cam-alert-label">Last alert</span>
+            <div class="cam-alert-body">
+                {% if cam.alert %}
+                <a href="{{ cam.alert.url }}">#{{ cam.alert.id }} {{ cam.alert.title }}</a>
+                <span class="cam-alert-tags"><span class="pill" data-priority="{{ cam.alert.priority }}">{{ cam.alert.priority_label }}</span><span class="status-dot" data-status="{{ cam.alert.status }}">{{ cam.alert.status_label }}</span><time>{{ cam.alert.time }}</time></span>
+                {% else %}
+                <span class="cam-alert-none">No alerts from this camera yet.</span>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+    {% endfor %}
+</div>
+
+<p class="ops-note cam-note">Run <strong data-no-i18n>run_simulation all</strong> to start all cameras. The streams are recorded footage replayed as live video, not physical CCTV cameras.</p>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/hls.light.min.js' %}" defer></script>
+<script src="{% static 'js/live_cameras.js' %}" defer></script>
+{% endblock %}
