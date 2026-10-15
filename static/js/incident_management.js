@@ -11,7 +11,7 @@
         if (!button) { event.preventDefault(); return; }
         if (button.hasAttribute("data-require-selection") && !checkboxes.some(box => box.checked)) {
             event.preventDefault();
-            window.alert("Select at least one incident.");
+            window.alert(window.ExpoI18n ? window.ExpoI18n.t("Select at least one incident.") : "Select at least one incident.");
             return;
         }
         const question = button.dataset.manageConfirm;
