@@ -13,6 +13,7 @@ case "$MODE" in
 esac
 
 VENV_PY="$ROOT/venv/bin/python"
+export PYTHONUNBUFFERED=1
 [[ -x "$VENV_PY" ]] || { echo "[ERROR] Missing venv/bin/python." >&2; exit 1; }
 [[ -f "$ROOT/manage.py" ]] || { echo "[ERROR] Missing manage.py." >&2; exit 1; }
 for tool in ffmpeg curl lsof; do
