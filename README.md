@@ -74,7 +74,7 @@ Visit **Dashboard:** http://127.0.0.1:8000/ · **Live cameras:** http://127.0.0.
 
 The runner uses local HLS ports **8081** (crowd), **8082** (restricted areas), and **8083** (fall); Django serves the browser camera page over port **8000**. Stream videos are unannotated footage: detection events are recorded in `streams/logs/` and appear as incidents. Press **Ctrl+C** to stop the runner.
 
-The equipment source is an external public feed and may be unavailable or change independently of this prototype. The Mac `main` runner currently polls all eligible feed devices in `all` mode; demo alert volume can be high. A proposed reduction to one sample device is pending in [PR #12](../../pull/12).
+The equipment source is an external public feed and may be unavailable or change independently of this prototype. The Mac `main` runner currently polls all eligible feed devices in `all` mode; demo alert volume can be high. A proposed reduction to one sample device is pending in [PR #12](https://github.com/Abdullah-Albassami/expopulse/pull/12).
 
 ## Verify
 
@@ -126,7 +126,7 @@ Some technical documents also preserve earlier integration and team-development 
 - Demo locations are illustrative; they are not geolocations of the Paris hardware.
 - SQLite, development settings and the local API token are intended for a **local prototype only**; do not expose the development server to the public internet.
 - Sample incidents may be mixed with live demonstration alerts. Check your local database before the presentation.
-- Proposed priority-balancing and Arabic terminology refinements are pending in [PR #12](../../pull/12) and [PR #13](../../pull/13), respectively.
+- Proposed priority-balancing and Arabic terminology refinements are pending in [PR #12](https://github.com/Abdullah-Albassami/expopulse/pull/12) and [PR #13](https://github.com/Abdullah-Albassami/expopulse/pull/13), respectively.
 
 ## Team
 
