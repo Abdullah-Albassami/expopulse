@@ -570,3 +570,15 @@ a.report { display: inline-block; text-decoration: none; }
 .cam-alert-none { color: var(--mist); font-size: .9rem; }
 .cam-note { margin-top: 18px; }
 :root[data-theme="light"] .cam-badge[data-state="live"] { background: #ba2734; border-color: #ba2734; }
+
+/* Compact operations footer */
+.footer-inner { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); gap: 42px; }
+.footer-subtitle { color: var(--paper) !important; font-weight: 700; }
+.footer-links ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.footer-links a, .footer-project a { color: var(--mist); text-decoration: none; }
+.footer-links a:hover, .footer-project a:hover { color: var(--paper); text-decoration: underline; text-underline-offset: 3px; }
+.footer-links a:focus-visible, .footer-project a:focus-visible { outline: 2px solid var(--azure); outline-offset: 4px; border-radius: 3px; }
+.footer-project p { margin: 0 0 10px; color: var(--mist); }
+.footer-bottom { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 900px) { .footer-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; } .footer-about { grid-column: 1 / -1; } }
+@media (max-width: 520px) { .footer-inner { grid-template-columns: 1fr; } .footer-about { grid-column: auto; } }

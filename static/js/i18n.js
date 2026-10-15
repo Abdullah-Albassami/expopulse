@@ -281,6 +281,16 @@
             "لتشغيل كل الكاميرات. البث عبارة عن مقاطع مسجّلة تُعرض كبث مباشر، وليست كاميرات مراقبة فعلية.",
 
         // Footer
+        "Smart Operations Center": "مركز العمليات الذكي",
+        "Unified incident monitoring, intelligent prioritization, and coordinated response for Expo 2030.": "مراقبة موحّدة للحوادث وتحديد ذكي للأولويات وتنسيق الاستجابة لإكسبو 2030.",
+        "Quick Links": "روابط سريعة",
+        "Operations Dashboard": "لوحة مركز العمليات",
+        "Response Teams": "فرق الاستجابة",
+        "Footer quick links": "روابط التذييل السريعة",
+        "Project": "المشروع",
+        "GitHub Repository": "مستودع GitHub",
+        "Developed by Vision Crew": "من تطوير فريق فيجن كرو",
+        "Expo 2030 Operations Center Prototype": "نموذج أولي لمركز عمليات إكسبو 2030",
         "About ExpoPulse": "عن نبض إكسبو",
         "ExpoPulse is a smart operations center for Expo 2030. It brings incidents from CCTV detection, equipment monitoring and staff reports into one queue, ranks them by priority and dispatches the right response team.":
             "نبض إكسبو (ExpoPulse) مركز عمليات ذكي لمعرض إكسبو 2030. يجمع البلاغات من كاميرات المراقبة ومراقبة المعدات وبلاغات الموظفين في قائمة واحدة، ويرتّبها حسب الأولوية، ويوجّه فريق الاستجابة المناسب.",

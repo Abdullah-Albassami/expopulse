@@ -90,40 +90,30 @@
     </main>
 
     <footer class="site-footer">
-        <div class="footer-inner">
-            <div class="footer-about">
-                <h2 class="footer-title">About ExpoPulse</h2>
-                <p>ExpoPulse is a smart operations center for Expo 2030. It brings incidents from CCTV detection, equipment monitoring and staff reports into one queue, ranks them by priority and dispatches the right response team.</p>
-                <p class="footer-tag">Expo 2030 Challenge 3.6</p>
-            </div>
-            <section class="footer-team" aria-labelledby="footer-team-title">
-                <h2 class="footer-title" id="footer-team-title">Team members</h2>
-                <ul class="member-grid">
-                    <li class="member">
-                        <img src="{% static 'img/team/abdullah.jpg' %}" alt="" width="76" height="76" loading="lazy">
-                        <span class="member-name">Abdullah Saeed Albassami</span>
-                        <span class="member-role">Team Leader · Backend</span>
-                    </li>
-                    <li class="member">
-                        <img src="{% static 'img/team/ammar.jpg' %}" alt="" width="76" height="76" loading="lazy">
-                        <span class="member-name">Ammar Mohammed Abdulkarim</span>
-                        <span class="member-role">Backend</span>
-                    </li>
-                    <li class="member">
-                        <img src="{% static 'img/team/nasser.jpg' %}" alt="" width="76" height="76" loading="lazy">
-                        <span class="member-name">Nasser Yaseen Abdu Qasem</span>
-                        <span class="member-role">Frontend</span>
-                    </li>
-                    <li class="member">
-                        <img src="{% static 'img/team/mohammed.jpg' %}" alt="" width="76" height="76" loading="lazy">
-                        <span class="member-name">Mohammed Yousef Alfulaij</span>
-                        <span class="member-role">Testing</span>
-                    </li>
-                </ul>
-            </section>
-        </div>
-        <p class="footer-bottom"><span>© 2026 ExpoPulse</span> · <span>Built by the ExpoPulse team.</span></p>
-    </footer>
+  <div class="footer-inner">
+    <section class="footer-about" aria-labelledby="footer-about-title">
+      <h2 class="footer-title" id="footer-about-title">ExpoPulse</h2>
+      <p class="footer-subtitle">Smart Operations Center</p>
+      <p>Unified incident monitoring, intelligent prioritization, and coordinated response for Expo 2030.</p>
+    </section>
+    <nav class="footer-links" aria-label="Footer quick links">
+      <h2 class="footer-title">Quick Links</h2>
+      <ul>
+        <li><a href="{% url 'dashboard' %}">Operations Dashboard</a></li>
+        <li><a href="{% url 'live_cameras' %}">Live Cameras</a></li>
+        <li><a href="{% url 'incident_list' %}">Incidents</a></li>
+        <li><a href="{% url 'team_list' %}">Response Teams</a></li>
+      </ul>
+    </nav>
+    <section class="footer-project" aria-labelledby="footer-project-title">
+      <h2 class="footer-title" id="footer-project-title">Project</h2>
+      <p>Expo 2030 Challenge 3.6</p>
+      <p><a href="https://github.com/Abdullah-Albassami/expopulse" target="_blank" rel="noopener noreferrer">GitHub Repository</a></p>
+      <p>Developed by Vision Crew</p>
+    </section>
+  </div>
+  <div class="footer-bottom"><span>© 2026 ExpoPulse</span><span>Expo 2030 Operations Center Prototype</span></div>
+</footer>
 
     <script src="{% static 'js/i18n.js' %}"></script>
     <script src="{% static 'js/theme.js' %}" defer></script>
