@@ -1,3 +1,5 @@
+> **Frontend implementation notes.** Some sections document the original UI handoff and may describe historical behavior. Refer to [README.md](README.md) for the integrated prototype and current setup.
+
 # ExpoPulse frontend
 
 Member 3 task: the operations dashboard and user interface for ExpoPulse,
@@ -134,8 +136,7 @@ sample data in a real browser:
 - The create form saves an incident.
 - Pages were checked at laptop width and at phone width.
 
-Not tested yet: the pages with the team's real views and `seed_data`,
-because those are connected by the team lead.
+Historical frontend handoff note: the Django views, routes and `seed_data` are now integrated.
 
 ## Files
 
@@ -172,8 +173,7 @@ FRONTEND_README.md
 - **Adding a translation:** add the exact English text and its Arabic to the
   `TEXT` table at the top of `static/js/i18n.js`. Sentences that contain
   numbers or names go in `PATTERNS`.
-- **Footer:** "About ExpoPulse" and the four team members with photo and role
-  (`templates/base.html`, photos in `static/img/team/`).
+- **Footer:** three-column footer with platform links and Vision Crew attribution (`templates/base.html`).
 - **Logo:** the pulse line is dark in the light theme so it stays visible.
 - **Arabic name:** in Arabic the brand reads **نبض إكسبو** ("Pulse of Expo",
   the meaning of ExpoPulse) in the logo, the browser tab and the footer.
