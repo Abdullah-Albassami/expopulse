@@ -52,6 +52,14 @@ python manage.py seed_data
 python manage.py runserver
 ```
 
+## Configuration and security
+
+The local Django development server uses `DJANGO_DEBUG=1` by default and listens on localhost. The committed settings no longer contain a reusable hardcoded secret. For any deployment beyond an isolated local demonstration, configure a strong `DJANGO_SECRET_KEY`, set `DJANGO_DEBUG=0`, restrict `DJANGO_ALLOWED_HOSTS`, and use a production-ready database, web server, access controls, and HTTPS. **Do not publish this demo server directly to the internet.**
+
+Example (macOS): `export DJANGO_SECRET_KEY="$(python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())')"`
+
+**Important:** The repository's previously committed development secret key may still exist in Git history. Treat it as compromised; never reuse it. The example runner equipment token is for a localhost demonstration only.
+
 ## Run the complete local demo
 
 Stop any separate Django development server before using `all` mode: the runner starts its own Django process and three CCTV HLS streams. Ensure FFmpeg is installed and the three example videos are present in `footage/`.
